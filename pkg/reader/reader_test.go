@@ -25,6 +25,8 @@ func TestDefaultEndPromptRegex(t *testing.T) {
 		{"S-DGB1-H17-WZJR-~(M)# ", true},
 		{"S-DGB1-H17-WZJR-~(B)# ", true},
 		{"中文名称 #", true},
+		{"(CN-SZ-MC01) *#", true},
+		{"mtk54007@(szimhM)(cfg-sync Standalone)(Active)(/Common)(tmos)#", true},
 		{"root@test-01(active)a ", false},
 		{"]", false},
 		{"#", false},
