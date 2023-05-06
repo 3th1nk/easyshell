@@ -13,7 +13,9 @@ import (
 )
 
 var (
-	DefaultEndPrompt = regexp.MustCompile(`^\S+\s*[#$>:~%\]]+\s*$`)
+	promptSuffix = `[\s\S]*[#$>:~%\]]+\s*$`
+
+	DefaultEndPrompt = regexp.MustCompile(`\S+` + promptSuffix)
 
 	defaultRemainingInjector = []injector.InputInjector{
 		injector.More(),
@@ -279,7 +281,7 @@ func (r *Reader) tryCorrectEndPrompt(hostname string) {
 	if len(hostname) > 10 {
 		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, hostname[:10])
 	}
-	prompt := hostname + `\s*[#$>:~%\]]+\s*$`
+	prompt := `(?i)` + hostname + promptSuffix
 	r.cfg.EndPrompt = []*regexp.Regexp{regexp.MustCompile(prompt)}
 	//util.PrintTimeLn("correct end prompt regex:" + prompt)
 }
