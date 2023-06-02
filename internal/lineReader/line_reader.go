@@ -13,7 +13,7 @@ func New(r io.Reader, opts ...Option) *LineReader {
 	if r != nil {
 		obj := &LineReader{
 			r:      r,
-			filter: filter.CtrlFilter,
+			filter: filter.DefaultFilter,
 			lines:  make([]string, 0, 4),
 		}
 		for _, opt := range opts {
@@ -67,42 +67,35 @@ func (lr *LineReader) read() {
 		var realBuf []byte
 		if lr.remaining == "" && lr.remainingOffset != 0 {
 			// 如果 remaining 为空、但 remainingOffset 不为 0 ，表示 remaining 在 popLine 函数中已经被丢弃了
-			realBuf = lr.filter(buf[lr.remainingOffset:size])
+			realBuf = lr.doFilter(buf[lr.remainingOffset:size])
 			lr.remainingOffset = 0
 		} else {
-			realBuf = lr.filter(buf[:size])
+			realBuf = lr.doFilter(buf[:size])
 		}
 
 		// 从缓冲区最后一个换行符的位置，将缓冲区拆分为两部分
 		//   如果有换行符，则缓冲区中只留下最后一个换行符后面的内容；
 		//   如果没有换行符，缓冲区保留（同时要判断缓冲区自动扩容）。
-		if i := bytes.LastIndexByte(realBuf, '\n'); i != -1 {
-			// lines
-			var linesStr string
-			if lr.decode(&linesStr, realBuf[:i]); linesStr != "" {
+		if i := bytes.LastIndexByte(realBuf, '\n'); i >= 0 {
+			if linesStr := lr.decode(realBuf[:i]); linesStr != "" {
 				arr := strings.Split(linesStr, "\n")
-				for i, s := range arr {
-					if len(s) != 0 && s[len(s)-1] == '\r' {
-						arr[i] = s[:len(s)-1]
-					} else {
-						arr[i] = s
-					}
-				}
 				lr.lines = append(lr.lines, arr...)
 			}
 
 			// remaining
-			tmp := realBuf[i+1:]
-			lr.decode(&lr.remaining, tmp)
-			copy(buf, tmp)
-			offset = len(tmp)
+			lr.remaining = lr.decode(realBuf[i+1:])
+			copy(buf, realBuf[i+1:])
+			offset = len(realBuf[i+1:])
+
 		} else {
-			// remaining
-			lr.decode(&lr.remaining, realBuf)
+			// 自动扩容
 			if size == len(buf) {
 				buf = make([]byte, size*2)
-				copy(buf, realBuf)
 			}
+
+			// remaining
+			lr.remaining = lr.decode(realBuf)
+			copy(buf, realBuf)
 			offset = len(realBuf)
 		}
 		lr.remainingOffset = offset
@@ -111,21 +104,26 @@ func (lr *LineReader) read() {
 	}
 }
 
-func (lr *LineReader) decode(s *string, b []byte) {
-	if len(b) == 0 {
-		return
+func (lr *LineReader) doFilter(s []byte) []byte {
+	if lr.filter != nil {
+		return lr.filter(s)
+	}
+	return s
+}
+
+func (lr *LineReader) decode(s []byte) string {
+	if len(s) == 0 {
+		return ""
 	}
 
 	if lr.decoder != nil {
-		if b2, err := lr.decoder(b); err == nil {
-			*s = string(b2)
-			return
+		if s2, err := lr.decoder(s); err == nil {
+			return string(s2)
 		}
-		*s = string(b)
-	} else {
-		// 如果没有指定自定义的解码方法，则默认尝试转换UTF8
-		*s = charset.ToUTF8(string(b))
+		return string(s)
 	}
+	// 如果没有指定自定义的解码方法，则默认尝试转换UTF8
+	return charset.ToUTF8(string(s))
 }
 
 func (lr *LineReader) PopLines(f func(lines []string, remaining string) (dropRemaining bool)) (popped int, err error) {

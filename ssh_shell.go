@@ -13,7 +13,7 @@ import (
 type SshShellConfig struct {
 	reader.Config
 
-	Echo       bool   // 模拟终端回显，默认值 false
+	Echo       bool   // 模拟终端回显，默认值 false，网络设备上无效（总是回显）
 	Term       string // 模拟终端类型，默认值 VT100
 	TermHeight int    // 模拟终端高度，默认值 200
 	TermWidth  int    // 模拟终端宽度，默认值 80
