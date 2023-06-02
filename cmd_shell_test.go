@@ -23,10 +23,10 @@ func TestCmdShell_1(t *testing.T) {
 	if err == io.EOF {
 		util.PrintTimeLn("-> EOF")
 	} else if err != nil {
-		util.Println("-> error: %v", err)
+		util.PrintTimeLn("-> error: %v", err)
 	}
 
-	util.Println("End: took=%v", time.Since(start))
+	util.PrintTimeLn("End: took=%v", time.Since(start))
 
 	assert.LessOrEqual(t, 8, len(out))
 	assert.True(t, _test.HasLine(out, "ping statistics") || _test.HasLine(out, "Ping 统计信息"))
@@ -41,7 +41,7 @@ func TestCmdShell_2(t *testing.T) {
 		"c:",
 		"dir",
 	} {
-		util.Println("======================================================= %v", cmd)
+		util.PrintTimeLn("======================================================= %v", cmd)
 		s.Write(cmd)
 		err := s.ReadToEndLine(time.Minute, func(lines []string) {
 			out = append(out, lines...)

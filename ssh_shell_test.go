@@ -14,15 +14,21 @@ import (
 
 var (
 	hostCred = &SshCred{
-		Host:     "192.0.2.2",
+		Host:     "192.0.2.17",
+		Port:     22,
+		User:     "root",
+		Password: "<password>",
+	}
+	netCredCisco = &SshCred{
+		Host:     "192.0.2.12",
 		Port:     22,
 		User:     "admin",
 		Password: "<password>",
 	}
-	netCred = &SshCred{
-		Host:     "192.0.2.12",
+	netCredArray = &SshCred{
+		Host:     "192.0.2.15",
 		Port:     22,
-		User:     "admin",
+		User:     "array",
 		Password: "<password>",
 	}
 )
@@ -260,9 +266,10 @@ func TestSshShell_Sudo(t *testing.T) {
 		"su root",
 		"whoami",
 	} {
-		var pwdInjector injector.InputInjector
+		var injectorArr []injector.InputInjector
 		if cmd == "su root" {
-			pwdInjector, _ = injector.Password("password:", "<password>", true)
+			inject, _ := injector.Password("password:", "<password>", true)
+			injectorArr = append(injectorArr, inject)
 		}
 
 		util.Println("======================================================= %v", cmd)
@@ -272,7 +279,7 @@ func TestSshShell_Sudo(t *testing.T) {
 			for _, line := range lines {
 				util.PrintTimeLn(line)
 			}
-		}, pwdInjector)
+		}, injectorArr...)
 		if err == io.EOF {
 			util.PrintTimeLn("-> EOF")
 		} else if err != nil {
@@ -285,7 +292,10 @@ func TestSshShell_Sudo(t *testing.T) {
 }
 
 func TestSshShell_NetDevice_Cisco(t *testing.T) {
-	s, err := NewSshShell(netCred, &SshShellConfig{
+	s, err := NewSshShell(netCredCisco, &SshShellConfig{
+		Config: reader.Config{
+			ShowEndPrompt: true,
+		},
 		TermHeight: 10,
 	})
 	if !assert.NoError(t, err) {
@@ -320,5 +330,39 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 
 	if out = _test.TrimEmptyLine(out); len(out) != 0 {
 		assert.Equal(t, "end", out[len(out)-1])
+	}
+}
+
+func TestSshShell_NetDevice_Array(t *testing.T) {
+	s, err := NewSshShell(netCredArray, &SshShellConfig{
+		Echo: true,
+		Config: reader.Config{
+			ShowEndPrompt: true,
+		},
+		TermHeight: 10,
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	util.Println("======================================================= first line:")
+	for _, line := range s.PopHeadLine() {
+		util.PrintTimeLn(line)
+	}
+
+	for _, cmd := range []string{
+		"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", // 超长输入触发缩进
+	} {
+		util.PrintTimeLn("======================================================= %v", cmd)
+		assert.NoError(t, s.Write(cmd))
+		err = s.ReadToEndLine(time.Minute, func(lines []string) {
+			for _, line := range lines {
+				util.PrintTimeLn(line)
+			}
+		})
+		if err != nil {
+			util.PrintTimeLn("-> error: %v", err)
+		}
 	}
 }

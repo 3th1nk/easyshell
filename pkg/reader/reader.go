@@ -118,7 +118,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 			// 命令行结束提示符
 			if remaining != "" && r.IsEndLine(remaining) {
 				stop = stopOnEndLine
-				return true
+				return !r.cfg.ShowEndPrompt
 			}
 			stop = false
 
