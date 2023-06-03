@@ -13,7 +13,7 @@ func DefaultFilter(s []byte) []byte {
 	// 处理回车换行
 	s = crlfFilter(s)
 
-	// 要丢弃的字符: []{起始位置(包含)，结束位置(不包含)}
+	// 其他字符
 	var dropArr [][2]int
 	var drop [2]int
 	var found bool
@@ -33,5 +33,5 @@ func DefaultFilter(s []byte) []byte {
 		pos++
 	}
 
-	return dropByte(s, dropArr)
+	return dropMultiBytes(s, dropArr)
 }
