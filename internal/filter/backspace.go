@@ -5,12 +5,11 @@ import (
 )
 
 func backspaceFilter(s []byte) []byte {
-	var bsCnt int
-	var pos int
-	for pos < len(s) {
+	var pos, bsCnt int
+	length := len(s)
+	for ; pos < length; pos++ {
 		if s[pos] == '\b' {
 			bsCnt++
-			pos++
 			continue
 		}
 
@@ -19,15 +18,15 @@ func backspaceFilter(s []byte) []byte {
 			// $ + 退格 + \r\n\r + 内容
 			var isArrayApvIndent bool
 			if pos-bsCnt > 0 && s[pos-bsCnt-1] == '$' &&
-				pos+2 < len(s) && s[pos] == '\r' && s[pos+1] == '\n' && s[pos+2] == '\r' {
+				pos+2 < length && s[pos] == '\r' && s[pos+1] == '\n' && s[pos+2] == '\r' {
 				isArrayApvIndent = true
 			}
 
 			if isArrayApvIndent {
 				// 删除退格
-				s = append(s[:pos-bsCnt], s[pos:]...)
+				length -= dropBytes(s, pos-bsCnt, pos)
 				// 跳过\r\n\r
-				pos = pos - bsCnt + 4
+				pos = pos - bsCnt + 3
 			} else {
 				// 删除退格以及前面等长的内容
 				start := pos - bsCnt<<1
@@ -38,15 +37,11 @@ func backspaceFilter(s []byte) []byte {
 				if index := bytes.LastIndexByte(s[:pos], '\n'); index >= start {
 					start = index + 1
 				}
-				s = append(s[:start], s[pos:]...)
-				pos = start + 1
+				length -= dropBytes(s, start, pos)
+				pos = start
 			}
-
 			bsCnt = 0
-			continue
 		}
-
-		pos++
 	}
 
 	// 处理尾部的退格
@@ -59,8 +54,8 @@ func backspaceFilter(s []byte) []byte {
 		if index := bytes.LastIndexByte(s[:pos], '\n'); index >= start {
 			start = index + 1
 		}
-		s = append(s[:start], s[pos:]...)
+		length -= dropBytes(s, start, pos)
 	}
 
-	return s
+	return s[:length]
 }
