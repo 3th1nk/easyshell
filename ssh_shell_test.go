@@ -354,7 +354,7 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 	for _, cmd := range []string{
 		"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", // 超长输入触发缩进
 	} {
-		util.PrintTimeLn("======================================================= %v", cmd)
+		util.Println("======================================================= %v", cmd)
 		assert.NoError(t, s.Write(cmd))
 		err = s.ReadToEndLine(time.Minute, func(lines []string) {
 			for _, line := range lines {
