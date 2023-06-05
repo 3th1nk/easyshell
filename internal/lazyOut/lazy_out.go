@@ -82,7 +82,7 @@ func (l *LazyOut) Add(lines []string) {
 		l.lineSize += len(s)
 	}
 	if l.size > 0 && l.lineSize >= l.size {
-		// fmt.Println(fmt.Sprintf("out by size: %v, %v", l.n, l.size))
+		//util.PrintTimeLn(fmt.Sprintf("out by size: %v, %v", l.lineSize, l.size))
 		outLines = l.lines
 		l.lines, l.lineSize = nil, 0
 		if l.interval > 0 {
