@@ -14,9 +14,30 @@ import (
 type CmdShellConfig struct {
 	reader.Config
 	Context context.Context
+	Prepare func(c *exec.Cmd)
 }
 
-func NewCmdShell(cmdAndArgs string, config *CmdShellConfig, setup ...func(c *exec.Cmd)) *CmdShell {
+func (c *CmdShellConfig) SetDefault() {
+	switch runtime.GOOS {
+	case "windows":
+		if c.Decoder == nil {
+			c.Decoder = simplifiedchinese.GB18030.NewDecoder().Bytes
+		}
+
+		if len(c.EndPrompt) == 0 {
+			//  "C:\\Users\\Administrator>"
+			//	"PS C:\\Users\\Administrator>"
+			c.EndPrompt = []*regexp.Regexp{regexp.MustCompile(`\S+>\s*$`)}
+		}
+	}
+}
+
+func NewCmdShell(cmdAndArgs string, config *CmdShellConfig) *CmdShell {
+	if config == nil {
+		config = &CmdShellConfig{}
+	}
+	config.SetDefault()
+
 	arr := splitCmd(cmdAndArgs)
 	var cmd *exec.Cmd
 	if config.Context == nil {
@@ -25,8 +46,8 @@ func NewCmdShell(cmdAndArgs string, config *CmdShellConfig, setup ...func(c *exe
 		cmd = exec.CommandContext(config.Context, arr[0], arr[1:]...)
 	}
 
-	if len(setup) != 0 && setup[0] != nil {
-		setup[0](cmd)
+	if config.Prepare != nil {
+		config.Prepare(cmd)
 	}
 
 	in, _ := cmd.StdinPipe()
@@ -47,16 +68,7 @@ func NewCmdShell(cmdAndArgs string, config *CmdShellConfig, setup ...func(c *exe
 			return nil
 		}
 	}
-	if runtime.GOOS == "windows" {
-		if config.Decoder == nil {
-			config.Decoder = simplifiedchinese.GB18030.NewDecoder().Bytes
-		}
-		if len(config.EndPrompt) == 0 {
-			//  "C:\\Users\\Administrator>"
-			//	"PS C:\\Users\\Administrator>"
-			config.EndPrompt = []*regexp.Regexp{regexp.MustCompile(`\S+>\s*$`)}
-		}
-	}
+
 	r := reader.New(in, out, err, config.Config)
 
 	return &CmdShell{Reader: r, c: cmd}

@@ -34,9 +34,7 @@ var (
 )
 
 func TestSshShell_Term(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{
-		Term: "VT100",
-	})
+	s, err := NewSshShell(hostCred, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -57,7 +55,7 @@ func TestSshShell_Term(t *testing.T) {
 }
 
 func TestSshShell_Ping(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{})
+	s, err := NewSshShell(hostCred, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -227,7 +225,7 @@ func TestSshShell_PingLazy(t *testing.T) {
 }
 
 func TestSshShell_ReadInput(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{})
+	s, err := NewSshShell(hostCred, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -248,7 +246,7 @@ func TestSshShell_ReadInput(t *testing.T) {
 }
 
 func TestSshShell_Sudo(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{})
+	s, err := NewSshShell(hostCred, nil)
 	if !assert.NoError(t, err) {
 		return
 	}

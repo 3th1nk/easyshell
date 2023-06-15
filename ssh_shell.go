@@ -19,6 +19,18 @@ type SshShellConfig struct {
 	TermWidth  int    // 模拟终端宽度，默认值 80
 }
 
+func (c *SshShellConfig) SetDefault() {
+	if c.Term == "" {
+		c.Term = "VT100"
+	}
+	if c.TermHeight <= 0 {
+		c.TermHeight = 200
+	}
+	if c.TermWidth <= 0 {
+		c.TermWidth = 80
+	}
+}
+
 func NewSshShell(cred *SshCred, config *SshShellConfig) (*SshShell, error) {
 	client, e := NewSshClient(cred)
 	if e != nil {
@@ -44,15 +56,11 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 		return nil, &errors.Error{Op: "session", Addr: addr, Err: err}
 	}
 
-	if config.Term == "" {
-		config.Term = "VT100"
+	if config == nil {
+		config = &SshShellConfig{}
 	}
-	if config.TermHeight <= 0 {
-		config.TermHeight = 200
-	}
-	if config.TermWidth <= 0 {
-		config.TermWidth = 80
-	}
+	config.SetDefault()
+
 	echo := util.IfInt(config.Echo, 1, 0)
 	if err = session.RequestPty(config.Term, config.TermHeight, config.TermWidth, ssh.TerminalModes{
 		ssh.ECHO:          uint32(echo), // disable echoing
@@ -97,16 +105,6 @@ func (this *SshShell) Client() *ssh.Client {
 
 func (this *SshShell) Session() *ssh.Session {
 	return this.session
-}
-
-func (this *SshShell) SftpClient(opt ...sftp.ClientOption) (*sftp.Client, error) {
-	if this.sftp == nil {
-		var err error
-		if this.sftp, err = sftp.NewClient(this.client, opt...); err != nil {
-			return nil, &errors.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: err}
-		}
-	}
-	return this.sftp, nil
 }
 
 func (this *SshShell) PopHeadLine() []string {
