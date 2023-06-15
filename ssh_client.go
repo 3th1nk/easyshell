@@ -70,8 +70,7 @@ func NewSshClient(cred *SshCred) (*ssh.Client, error) {
 		} else {
 			sshCfg.Auth = append(sshCfg.Auth, ssh.PublicKeys(signer))
 		}
-	}
-	if cred.Password != "" {
+	} else if cred.Password != "" {
 		sshCfg.Auth = append(sshCfg.Auth,
 			ssh.Password(cred.Password),
 			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) (answers []string, err error) {
