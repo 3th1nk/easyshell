@@ -13,19 +13,19 @@ import (
 )
 
 var (
-	hostCred = &SshCred{
-		Host:     "192.168.1.208",
+	hostCred = &SshCredential{
+		Host:     "192.168.1.65",
 		Port:     22,
 		User:     "root",
 		Password: "root@123",
 	}
-	netCredCisco = &SshCred{
+	netCredCisco = &SshCredential{
 		Host:     "192.168.2.14",
 		Port:     22,
 		User:     "admin",
 		Password: "admin123",
 	}
-	netCredArray = &SshCred{
+	netCredArray = &SshCredential{
 		Host:     "192.168.1.16",
 		Port:     22,
 		User:     "array",
@@ -34,7 +34,9 @@ var (
 )
 
 func TestSshShell_Term(t *testing.T) {
-	s, err := NewSshShell(hostCred, nil)
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+	})
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -55,7 +57,9 @@ func TestSshShell_Term(t *testing.T) {
 }
 
 func TestSshShell_Ping(t *testing.T) {
-	s, err := NewSshShell(hostCred, nil)
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+	})
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -96,8 +100,9 @@ func TestSshShell_Ping(t *testing.T) {
 }
 
 func TestSshShell_PingLazyInterval(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{
-		Config: reader.Config{LazyOutInterval: 2 * time.Second},
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+		Config:     reader.Config{LazyOutInterval: 2 * time.Second},
 	})
 	if !assert.NoError(t, err) {
 		return
@@ -139,8 +144,9 @@ func TestSshShell_PingLazyInterval(t *testing.T) {
 }
 
 func TestSshShell_PingLazySize(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{
-		Config: reader.Config{LazyOutSize: 200},
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+		Config:     reader.Config{LazyOutSize: 200},
 	})
 	if !assert.NoError(t, err) {
 		return
@@ -182,8 +188,9 @@ func TestSshShell_PingLazySize(t *testing.T) {
 }
 
 func TestSshShell_PingLazy(t *testing.T) {
-	s, err := NewSshShell(hostCred, &SshShellConfig{
-		Config: reader.Config{LazyOutInterval: time.Second, LazyOutSize: 200},
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+		Config:     reader.Config{LazyOutInterval: time.Second, LazyOutSize: 200},
 	})
 	if !assert.NoError(t, err) {
 		return
@@ -225,7 +232,9 @@ func TestSshShell_PingLazy(t *testing.T) {
 }
 
 func TestSshShell_ReadInput(t *testing.T) {
-	s, err := NewSshShell(hostCred, nil)
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+	})
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -246,7 +255,9 @@ func TestSshShell_ReadInput(t *testing.T) {
 }
 
 func TestSshShell_Sudo(t *testing.T) {
-	s, err := NewSshShell(hostCred, nil)
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+	})
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -290,7 +301,8 @@ func TestSshShell_Sudo(t *testing.T) {
 }
 
 func TestSshShell_NetDevice_Cisco(t *testing.T) {
-	s, err := NewSshShell(netCredCisco, &SshShellConfig{
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: netCredCisco,
 		Config: reader.Config{
 			ShowEndPrompt: true,
 		},
@@ -332,11 +344,12 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 }
 
 func TestSshShell_NetDevice_Array(t *testing.T) {
-	s, err := NewSshShell(netCredArray, &SshShellConfig{
-		Echo: true,
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: netCredArray,
 		Config: reader.Config{
 			ShowEndPrompt: true,
 		},
+		Echo:       true,
 		TermHeight: 10,
 	})
 	if !assert.NoError(t, err) {

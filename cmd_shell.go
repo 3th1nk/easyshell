@@ -17,7 +17,11 @@ type CmdShellConfig struct {
 	Prepare func(c *exec.Cmd)
 }
 
-func (c *CmdShellConfig) SetDefault() {
+func ensureInitCmdShellConfig(c *CmdShellConfig) {
+	if c == nil {
+		c = &CmdShellConfig{}
+	}
+
 	switch runtime.GOOS {
 	case "windows":
 		if c.Decoder == nil {
@@ -33,10 +37,7 @@ func (c *CmdShellConfig) SetDefault() {
 }
 
 func NewCmdShell(cmdAndArgs string, config *CmdShellConfig) *CmdShell {
-	if config == nil {
-		config = &CmdShellConfig{}
-	}
-	config.SetDefault()
+	ensureInitCmdShellConfig(config)
 
 	arr := splitCmd(cmdAndArgs)
 	var cmd *exec.Cmd

@@ -41,7 +41,7 @@ var (
 	}
 )
 
-type SshCred struct {
+type SshCredential struct {
 	Host       string `json:"host"`                  // IP地址
 	Port       int    `json:"port,omitempty"`        // 端口，默认22
 	User       string `json:"user,omitempty"`        // 用户名
@@ -51,7 +51,7 @@ type SshCred struct {
 }
 
 // NewSshClient 创建一个新的 SshClient
-func NewSshClient(cred *SshCred) (*ssh.Client, error) {
+func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 	addr := fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
 	timeout := util.IfInt(cred.Timeout > 0, cred.Timeout, 15)
 
