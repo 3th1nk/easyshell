@@ -12,14 +12,17 @@ import (
 
 type SshShellConfig struct {
 	reader.Config
-
-	Echo       bool   // 模拟终端回显，默认值 false，网络设备上无效（总是回显）
-	Term       string // 模拟终端类型，默认值 VT100
-	TermHeight int    // 模拟终端高度，默认值 200
-	TermWidth  int    // 模拟终端宽度，默认值 80
+	Credential *SshCredential // 凭证
+	Echo       bool           // 模拟终端回显，默认值 false，网络设备上无效（总是回显）
+	Term       string         // 模拟终端类型，默认值 VT100
+	TermHeight int            // 模拟终端高度，默认值 200
+	TermWidth  int            // 模拟终端宽度，默认值 80
 }
 
-func (c *SshShellConfig) SetDefault() {
+func ensureInitSshShellConfig(c *SshShellConfig) {
+	if c == nil {
+		c = &SshShellConfig{}
+	}
 	if c.Term == "" {
 		c.Term = "VT100"
 	}
@@ -31,8 +34,10 @@ func (c *SshShellConfig) SetDefault() {
 	}
 }
 
-func NewSshShell(cred *SshCred, config *SshShellConfig) (*SshShell, error) {
-	client, e := NewSshClient(cred)
+func NewSshShell(config *SshShellConfig) (*SshShell, error) {
+	ensureInitSshShellConfig(config)
+
+	client, e := NewSshClient(config.Credential)
 	if e != nil {
 		return nil, e
 	}
@@ -49,17 +54,13 @@ func NewSshShell(cred *SshCred, config *SshShellConfig) (*SshShell, error) {
 }
 
 func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShell, error) {
-	addr := client.RemoteAddr().String()
+	ensureInitSshShellConfig(config)
 
+	addr := client.RemoteAddr().String()
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, &errors.Error{Op: "session", Addr: addr, Err: err}
 	}
-
-	if config == nil {
-		config = &SshShellConfig{}
-	}
-	config.SetDefault()
 
 	echo := util.IfInt(config.Echo, 1, 0)
 	if err = session.RequestPty(config.Term, config.TermHeight, config.TermWidth, ssh.TerminalModes{
