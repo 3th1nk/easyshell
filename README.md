@@ -11,7 +11,7 @@
 ## 代码片段
 - 本地执行命令
 ```
-    s := NewCmdShell("ping www.baidu.com", &CmdShellConfig{})
+    s := NewCmdShell("ping www.baidu.com", nil)
     if err := s.ReadAll(time.Minute, func(lines []string) {
         // handle lines
     }); err != nil {
@@ -20,7 +20,7 @@
     
     ...
     
-    s2 := NewCmdShell("cmd /K", &CmdShellConfig{})
+    s2 := NewCmdShell("cmd /K", nil)
     for _, cmd := range []string{"c:", "dir"} {
         s2.Write(cmd)
         if err := s2.ReadToEndLine(time.Minute, func(lines []string) {
@@ -33,7 +33,7 @@
 
 - 远程(SSH)执行命令
 ```
-    cred := SshCred{
+    cred := SshCredential{
         Host:       "192.168.1.2",
         Port:       22,
         User:       "zhangsan",
@@ -41,7 +41,9 @@
         PrivateKey: "",
         Timeout:    5,
     }
-    s, err := NewSshShell(&cred, &SshShellConfig{})
+    s, err := NewSshShell(&SshShellConfig{
+	Credential: &cred,
+    })
     if err != nil {
         return
     }
