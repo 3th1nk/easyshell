@@ -36,3 +36,10 @@ func TestDefaultEndPromptRegex(t *testing.T) {
 		assert.Equal(t, obj.Matched, DefaultEndPrompt.MatchString(obj.Prompt))
 	}
 }
+
+func Test_findEndPromptRegexp(t *testing.T) {
+	promptStr := "HA-备 #"
+	re := findEndPromptRegexp(promptStr)
+	t.Log(re.String())
+	assert.Equal(t, true, re.MatchString(promptStr))
+}

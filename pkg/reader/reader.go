@@ -1,7 +1,9 @@
 package reader
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/internal/lazyOut"
 	"github.com/3th1nk/easyshell/internal/lineReader"
 	"github.com/3th1nk/easyshell/pkg/errors"
@@ -13,14 +15,10 @@ import (
 )
 
 var (
-	promptSuffix = `[\s\S]*[#$>:~%\]]+\s*$`
+	promptTailChars = `#$>:~%\]`
+	promptSuffix    = `[\s\S]*[` + promptTailChars + `]+\s*$`
 
 	DefaultEndPrompt = regexp.MustCompile(`\S+` + promptSuffix)
-
-	defaultRemainingInjector = []injector.InputInjector{
-		injector.More(),
-		injector.Continue(),
-	}
 )
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *Reader {
@@ -93,7 +91,7 @@ func (r *Reader) ReadAll(timeout time.Duration, onOut func(lines []string), inje
 	return r.Read(false, timeout, onOut, injector...)
 }
 
-func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), injector ...injector.InputInjector) (err error) {
+func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), injectors ...injector.InputInjector) (err error) {
 	if r.cfg.BeforeRead != nil {
 		if err = r.cfg.BeforeRead(); err != nil {
 			return err
@@ -117,13 +115,20 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 
 			// 命令行结束提示符
 			if remaining != "" && r.IsEndLine(remaining) {
+				// 仅当默认的提示符匹配规则匹配上 且 AutoEndPrompt=true 时，尝试自动纠正提示符匹配规则
+				if len(r.cfg.EndPrompt) == 0 && r.cfg.AutoEndPrompt {
+					if re := findEndPromptRegexp(remaining); re != nil {
+						r.cfg.EndPrompt = append(r.cfg.EndPrompt, re)
+						util.PrintTimeLn("correct end prompt regex:" + re.String())
+					}
+				}
 				stop = stopOnEndLine
 				return !r.cfg.ShowEndPrompt
 			}
 			stop = false
 
 			// 缓存区所有内容
-			if len(injector) != 0 {
+			if len(injectors) != 0 {
 				if injectStr == "" {
 					injectStr = strings.Join(lines, "\n")
 				} else {
@@ -132,7 +137,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 				if remaining != "" {
 					injectStr += "\n" + remaining
 				}
-				for _, f := range injector {
+				for _, f := range injectors {
 					if match, showOut, input := f(injectStr); match {
 						// 重置 injectStr
 						injectStr = ""
@@ -149,7 +154,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 
 			// 最后一行内容
 			if remaining != "" {
-				for _, f := range defaultRemainingInjector {
+				for _, f := range injector.Default() {
 					if match, showOut, input := f(remaining); match {
 						// 重置 injectStr
 						injectStr = ""
@@ -248,40 +253,37 @@ func (r *Reader) IsEndLine(s string) bool {
 
 	if DefaultEndPrompt.MatchString(s) {
 		//util.PrintTimeLn("default end prompt matched:" + s)
-		// 当默认的提示符匹配规则匹配上 且 AutoEndPrompt=true 时，自动纠正提示符匹配规则
-		//	！！！由于提示符的格式非常自由，特别是主机上，自动纠正有可能反而导致无法匹配，应视情况使用 ！！！
-		if r.cfg.AutoEndPrompt {
-			// 由于提示符在交互过程中可能会变化，这里先提取一下主机名，再通配一下尾部
-			//	网络设备进入配置模式：hostname# => hostname(config)#
-			//  主机切换用户：user1@hostname# => user2@hostname#
-			regex := regexp.MustCompile(`[a-zA-Z0-9_.@&\-]+`)
-			if str := regex.FindString(s); str != "" {
-				// 如果包含（常用的）分隔符，默认取分隔符之后的内容作为主机名
-				hostname := str
-				for _, sep := range []byte{'@', '.'} {
-					if index := strings.IndexByte(str, sep); index != -1 {
-						hostname = str[index+1:]
-						break
-					}
-				}
-				r.tryCorrectEndPrompt(hostname)
-			}
-		}
 		return true
 	}
 	return false
 }
 
-func (r *Reader) tryCorrectEndPrompt(hostname string) {
+// findEndPromptRegexp
+//	！！！由于提示符的格式非常自由，特别是主机上，自动纠正有可能反而导致无法匹配，应视情况使用 ！！！
+func findEndPromptRegexp(remaining string) *regexp.Regexp {
+	if remaining == "" {
+		return nil
+	}
+
+	// 由于提示符在交互过程中可能会变化，这里先提取一下主机名，再通配一下尾部
+	//	网络设备进入配置模式：hostname# => hostname(config)#
+	//  主机切换用户：user1@hostname# => user2@hostname#
+	// 如果包含（常用的）分隔符，默认取分隔符之后的内容作为主机名
+	hostname := strings.TrimRight(strings.TrimSpace(remaining), promptTailChars)
+	for _, sep := range []rune{'@', '.'} {
+		if idx := bytes.IndexRune([]byte(remaining), sep); idx != -1 {
+			hostname = string([]rune(remaining)[idx+1:])
+			break
+		}
+	}
 	if hostname == "" {
-		return
+		return nil
 	}
 
 	// 存在提示符被省略的情况，如 山石防火墙：S-ABC-D1-EFG-~(M)#
 	if len(hostname) > 10 {
-		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, hostname[:10])
+		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string([]rune(hostname)[:10]))
 	}
-	prompt := `(?i)` + hostname + promptSuffix
-	r.cfg.EndPrompt = []*regexp.Regexp{regexp.MustCompile(prompt)}
-	//util.PrintTimeLn("correct end prompt regex:" + prompt)
+	prompt := `(?i)` + string(hostname) + promptSuffix
+	return regexp.MustCompile(prompt)
 }
