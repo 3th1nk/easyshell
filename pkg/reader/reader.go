@@ -15,10 +15,14 @@ import (
 )
 
 var (
-	promptTailChars = `#$>:~%\]`
-	promptSuffix    = `[\s\S]*[` + promptTailChars + `]+\s*$`
-
-	DefaultEndPrompt = regexp.MustCompile(`\S+` + promptSuffix)
+	promptTailChars  = `#$>:~%\]`
+	promptSuffix     = `[\s\S]*[` + promptTailChars + `]+\s*$`
+	defaultInjectors = []injector.InputInjector{
+		injector.More(),
+		injector.Continue(),
+		injector.AlwaysNo(),
+	}
+	defaultEndPromptRegexp = regexp.MustCompile(`\S+` + promptSuffix)
 )
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *Reader {
@@ -154,7 +158,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 
 			// 最后一行内容
 			if remaining != "" {
-				for _, f := range injector.Default() {
+				for _, f := range defaultInjectors {
 					if match, showOut, input := f(remaining); match {
 						// 重置 injectStr
 						injectStr = ""
@@ -251,7 +255,7 @@ func (r *Reader) IsEndLine(s string) bool {
 		return false
 	}
 
-	if DefaultEndPrompt.MatchString(s) {
+	if defaultEndPromptRegexp.MatchString(s) {
 		//util.PrintTimeLn("default end prompt matched:" + s)
 		return true
 	}
@@ -285,6 +289,6 @@ func findEndPromptRegexp(remaining string) *regexp.Regexp {
 	if len(runStr) > 10 {
 		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string(runStr[:10]))
 	}
-	prompt := `(?i)` + string(hostname) + promptSuffix
+	prompt := `(?i)` + hostname + promptSuffix
 	return regexp.MustCompile(prompt)
 }

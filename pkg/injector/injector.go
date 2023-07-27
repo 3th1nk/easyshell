@@ -7,19 +7,20 @@ import (
 
 type InputInjector func(str string) (match bool, showOut bool, input string)
 
-func Default() []InputInjector {
-	return append(Continue(), More())
-}
-
 func More() InputInjector {
-	return Pattern(`(?i)^\s*-+\s*more\s*-+`, " ", lastLine, false)
+	return Regexp(regexp.MustCompile(`(?i)^\s*-+\s*more\s*-+`), " ", lastLine, false)
 }
 
-func Continue() []InputInjector {
-	return []InputInjector{
-		Pattern(`(?i)^press\s+any\s+key\s+to\s+continue`, " ", lastLine, false),
-		Pattern(`(?i)y[es]/n[o]`, "n", lastLine, false),
-	}
+func Continue() InputInjector {
+	return Regexp(regexp.MustCompile(`(?i)^press\s+any\s+key\s+to\s+continue`), " ", lastLine, false)
+}
+
+func AlwaysYes() InputInjector {
+	return Regexp(regexp.MustCompile(`(?i)[\[(](y|yes)[/|]?(n|no)[])]`), "y", lastLine, false)
+}
+
+func AlwaysNo() InputInjector {
+	return Regexp(regexp.MustCompile(`(?i)[\[(](y|yes)[/|]?(n|no)[])]`), "n", lastLine, false)
 }
 
 func Password(pattern string, password string, showOut ...bool) InputInjector {
