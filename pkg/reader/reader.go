@@ -269,10 +269,10 @@ func findEndPromptRegexp(remaining string) *regexp.Regexp {
 	//	网络设备进入配置模式：hostname# => hostname(config)#
 	//  主机切换用户：user1@hostname# => user2@hostname#
 	// 如果包含（常用的）分隔符，默认取分隔符之后的内容作为主机名
-	hostname := strings.TrimRight(strings.TrimSpace(remaining), promptTailChars)
-	for _, sep := range []rune{'@', '.'} {
-		if idx := bytes.IndexRune([]byte(remaining), sep); idx != -1 {
-			hostname = string([]rune(remaining)[idx+1:])
+	hostname := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(remaining), promptTailChars))
+	for _, sep := range []byte{'@', '.'} {
+		if idx := bytes.IndexByte([]byte(hostname), sep); idx != -1 {
+			hostname = hostname[idx+1:]
 			break
 		}
 	}
@@ -281,8 +281,9 @@ func findEndPromptRegexp(remaining string) *regexp.Regexp {
 	}
 
 	// 存在提示符被省略的情况，如 山石防火墙：S-ABC-D1-EFG-~(M)#
-	if len(hostname) > 10 {
-		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string([]rune(hostname)[:10]))
+	runStr := []rune(hostname)
+	if len(runStr) > 10 {
+		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string(runStr[:10]))
 	}
 	prompt := `(?i)` + string(hostname) + promptSuffix
 	return regexp.MustCompile(prompt)
