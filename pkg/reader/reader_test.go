@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDefaultEndPromptRegex(t *testing.T) {
+func TestDefaultEndPromptRegexp(t *testing.T) {
 	for _, obj := range []struct {
 		Prompt  string
 		Matched bool
@@ -33,7 +33,7 @@ func TestDefaultEndPromptRegex(t *testing.T) {
 		{"$", false},
 		{" # ", false},
 	} {
-		assert.Equal(t, obj.Matched, DefaultEndPrompt.MatchString(obj.Prompt))
+		assert.Equal(t, obj.Matched, defaultEndPromptRegexp.MatchString(obj.Prompt))
 	}
 }
 
