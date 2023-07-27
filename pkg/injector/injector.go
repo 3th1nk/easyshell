@@ -16,11 +16,11 @@ func Continue() InputInjector {
 }
 
 func AlwaysYes() InputInjector {
-	return Regexp(regexp.MustCompile(`(?i)[\[(](y|yes)[/|]?(n|no)[])]`), "y", lastLine, false)
+	return Regexp(regexp.MustCompile(`(?i)[\[(](y|yes)[/|]?(n|no)[])][:?]\s*$`), "y", lastLine, false)
 }
 
 func AlwaysNo() InputInjector {
-	return Regexp(regexp.MustCompile(`(?i)[\[(](y|yes)[/|]?(n|no)[])]`), "n", lastLine, false)
+	return Regexp(regexp.MustCompile(`(?i)[\[(](y|yes)[/|]?(n|no)[])][:?]\s*$`), "n", lastLine, false)
 }
 
 func Password(pattern string, password string, showOut ...bool) InputInjector {
