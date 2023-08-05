@@ -9,9 +9,9 @@ func DefaultFilter(s []byte) []byte {
 	}
 
 	// 处理退格
-	s = backspaceFilter(s)
+	s = BackspaceFilter(s)
 	// 处理回车换行
-	s = crlfFilter(s)
+	s = CrlfFilter(s)
 
 	// 其他字符
 	var dropArr [][2]int

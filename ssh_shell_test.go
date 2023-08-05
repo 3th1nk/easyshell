@@ -3,9 +3,9 @@ package easyshell
 import (
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easygo/util/arrUtil"
-	"github.com/3th1nk/easyshell/internal/_test"
-	"github.com/3th1nk/easyshell/pkg/injector"
-	"github.com/3th1nk/easyshell/pkg/reader"
+	"github.com/3th1nk/easyshell/internal/misc"
+	"github.com/3th1nk/easyshell/pkg/interceptor"
+	"github.com/3th1nk/easyshell/reader"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"testing"
@@ -17,7 +17,7 @@ var (
 		Host:     "192.168.1.65",
 		Port:     22,
 		User:     "root",
-		Password: "root@123",
+		Password: "geesunn@123",
 	}
 	netCredCisco = &SshCredential{
 		Host:     "192.168.2.14",
@@ -52,8 +52,8 @@ func TestSshShell_Term(t *testing.T) {
 		}
 	})
 
-	assert.True(t, _test.HasLine(out, "declare -x"))
-	assert.True(t, _test.HasLine(out, "LANG="))
+	assert.True(t, misc.HasLine(out, "declare -x"))
+	assert.True(t, misc.HasLine(out, "LANG="))
 }
 
 func TestSshShell_Ping(t *testing.T) {
@@ -94,9 +94,9 @@ func TestSshShell_Ping(t *testing.T) {
 
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
-	assert.Equal(t, 4, _test.LineCount(out, "bytes from", "): icmp_seq="))
-	assert.True(t, _test.HasLine(out, "--- baidu.com ping statistics ---"))
-	assert.True(t, _test.HasLine(out, "4 packets transmitted"))
+	assert.Equal(t, 4, misc.LineCount(out, "bytes from", "): icmp_seq="))
+	assert.True(t, misc.HasLine(out, "--- baidu.com ping statistics ---"))
+	assert.True(t, misc.HasLine(out, "4 packets transmitted"))
 }
 
 func TestSshShell_PingLazyInterval(t *testing.T) {
@@ -138,9 +138,9 @@ func TestSshShell_PingLazyInterval(t *testing.T) {
 
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
-	assert.LessOrEqual(t, 20, _test.LineCount(out, "bytes from", "): icmp_seq="))
-	assert.True(t, _test.HasLine(out, "--- baidu.com ping statistics ---"))
-	assert.True(t, _test.HasLine(out, "rtt min/avg/max/mdev ="))
+	assert.LessOrEqual(t, 20, misc.LineCount(out, "bytes from", "): icmp_seq="))
+	assert.True(t, misc.HasLine(out, "--- baidu.com ping statistics ---"))
+	assert.True(t, misc.HasLine(out, "rtt min/avg/max/mdev ="))
 }
 
 func TestSshShell_PingLazySize(t *testing.T) {
@@ -182,9 +182,9 @@ func TestSshShell_PingLazySize(t *testing.T) {
 
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
-	assert.LessOrEqual(t, 12, _test.LineCount(out, "bytes from", "): icmp_seq="))
-	assert.True(t, _test.HasLine(out, "--- baidu.com ping statistics ---"))
-	assert.True(t, _test.HasLine(out, "packets transmitted"))
+	assert.LessOrEqual(t, 12, misc.LineCount(out, "bytes from", "): icmp_seq="))
+	assert.True(t, misc.HasLine(out, "--- baidu.com ping statistics ---"))
+	assert.True(t, misc.HasLine(out, "packets transmitted"))
 }
 
 func TestSshShell_PingLazy(t *testing.T) {
@@ -226,9 +226,9 @@ func TestSshShell_PingLazy(t *testing.T) {
 
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
-	assert.LessOrEqual(t, 16, _test.LineCount(out, "bytes from", "): icmp_seq="))
-	assert.True(t, _test.HasLine(out, "--- baidu.com ping statistics ---"))
-	assert.True(t, _test.HasLine(out, "rtt min/avg/max/mdev ="))
+	assert.LessOrEqual(t, 16, misc.LineCount(out, "bytes from", "): icmp_seq="))
+	assert.True(t, misc.HasLine(out, "--- baidu.com ping statistics ---"))
+	assert.True(t, misc.HasLine(out, "rtt min/avg/max/mdev ="))
 }
 
 func TestSshShell_ReadInput(t *testing.T) {
@@ -243,13 +243,13 @@ func TestSshShell_ReadInput(t *testing.T) {
 	s.Write(`echo -e "请输入一个数字:\n" && read num && echo "你输入的数字是: $num"`)
 
 	var out []string
-	pwdInjector, _ := injector.Password("请输入一个数字", "123", true)
+	pwdInterceptor := interceptor.Password("请输入一个数字", "123", true)
 	s.ReadToEndLine(time.Minute, func(lines []string) {
 		out = append(out, lines...)
 		for _, line := range lines {
 			util.PrintTimeLn(line)
 		}
-	}, pwdInjector)
+	}, pwdInterceptor)
 
 	assert.True(t, arrUtil.ContainsString(out, "你输入的数字是: 123"))
 }
@@ -275,10 +275,10 @@ func TestSshShell_Sudo(t *testing.T) {
 		"su root",
 		"whoami",
 	} {
-		var injectorArr []injector.InputInjector
+		var arr []interceptor.Interceptor
 		if cmd == "su root" {
-			inject, _ := injector.Password("password:", "123456", true)
-			injectorArr = append(injectorArr, inject)
+			pwdInterceptor := interceptor.Password("password:", "123456", true)
+			arr = append(arr, pwdInterceptor)
 		}
 
 		util.Println("======================================================= %v", cmd)
@@ -288,7 +288,7 @@ func TestSshShell_Sudo(t *testing.T) {
 			for _, line := range lines {
 				util.PrintTimeLn(line)
 			}
-		}, injectorArr...)
+		}, arr...)
 		if err == io.EOF {
 			util.PrintTimeLn("-> EOF")
 		} else if err != nil {
@@ -296,7 +296,7 @@ func TestSshShell_Sudo(t *testing.T) {
 		}
 	}
 
-	assert.True(t, _test.Contains(out, "password:"))
+	assert.True(t, misc.Contains(out, "password:"))
 	assert.True(t, arrUtil.ContainsString(out, "root"))
 }
 
@@ -338,7 +338,7 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 		}
 	}
 
-	if out = _test.TrimEmptyLine(out); len(out) != 0 {
+	if out = misc.TrimEmptyLine(out); len(out) != 0 {
 		assert.Equal(t, "end", out[len(out)-1])
 	}
 }

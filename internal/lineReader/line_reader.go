@@ -3,7 +3,7 @@ package lineReader
 import (
 	"bytes"
 	"github.com/3th1nk/easygo/charset"
-	"github.com/3th1nk/easyshell/internal/filter"
+	"github.com/3th1nk/easyshell/pkg/filter"
 	"io"
 	"strings"
 	"sync"

@@ -37,7 +37,7 @@ func TestDefaultEndPromptRegexp(t *testing.T) {
 	}
 }
 
-func Test_findEndPromptRegexp(t *testing.T) {
+func TestFindEndPromptRegexp(t *testing.T) {
 	promptStr := "root@HA-备_试试长一点的中文 #"
 	re := findEndPromptRegexp(promptStr)
 	t.Log(re.String())

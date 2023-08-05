@@ -4,7 +4,7 @@ import (
 	"bytes"
 )
 
-func backspaceFilter(s []byte) []byte {
+func BackspaceFilter(s []byte) []byte {
 	var pos, bsCnt int
 	length := len(s)
 	for ; pos < length; pos++ {

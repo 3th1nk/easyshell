@@ -1,17 +1,16 @@
 # EasyShell
 * 支持本地执行命令(windows/linux)
 * 支持通过SSH在主机、网络设备上远程执行交互式命令
-* 支持自定义解码器，未指定时自动识别GB18030编码并转换成UTF8
-* 支持自定义字符过滤器，未指定时自动处理退格，并剔除CSI控制字符(部分情况未处理，如：ISO 8613-3和ISO 8613-6中24位前景色和背景色设置)
-* 支持自定义提示符匹配规则，未指定时使用默认提示符规则，并支持基于默认规则的匹配内容自动纠正
-* 支持自定义对指定输出内容的交互行为，内置密码输入的交互方法
-* 支持延迟返回输出内容，延迟策略包括 超过指定间隔 或 输出内容超过指定长度
-* 自动处理网络设备翻页(More)、继续执行(Continue)的场景
+* 支持自定义提示符匹配规则，大多数情况下使用默认提示符规则即可，使用默认提示符规则时可开启自动纠正(基于默认规则首次匹配结果，默认关闭)
+* 支持自定义解码器，默认自动识别GB18030编码并转换成UTF8
+* 支持自定义字符过滤器，默认自动处理退格、CRLF自动转换为LF，并剔除CSI控制字符(部分情况未处理，如：ISO 8613-3和ISO 8613-6中24位前景色和背景色设置)
+* 支持自定义内容拦截器，内置拦截器包括密码交互(Password)、问答交互(Yes/No)、网络设备自动翻页(More)、网络设备继续执行(Continue)
+* 支持延迟返回输出内容，可指定超过一定时间 或 内容大小 后返回
 
 ## 代码片段
 - 本地执行命令
 ```
-    s := NewCmdShell("ping www.baidu.com", nil)
+    s := NewCmdShell("ping www.baidu.com")
     if err := s.ReadAll(time.Minute, func(lines []string) {
         // handle lines
     }); err != nil {
@@ -20,7 +19,7 @@
     
     ...
     
-    s2 := NewCmdShell("cmd /K", nil)
+    s2 := NewCmdShell("cmd /K")
     for _, cmd := range []string{"c:", "dir"} {
         s2.Write(cmd)
         if err := s2.ReadToEndLine(time.Minute, func(lines []string) {
@@ -42,7 +41,7 @@
         Timeout:    5,
     }
     s, err := NewSshShell(&SshShellConfig{
-	Credential: &cred,
+        Credential: &cred,
     })
     if err != nil {
         return
@@ -55,10 +54,10 @@
 	
     // match 'password' prompt and enter the password automatically
     s.Write("su root")
-    pwdInjector, _ = injector.Password("password:", "123456", true)
+    pwdInterceptor := interceptor.Password("password:", "123456", true)
     if err := s.ReadToEndLine(time.Minute, func(lines []string) {
         // handle lines
-    }, pwdInjector); err != nil {
+    }, pwdInterceptor); err != nil {
         return err
     }
 ```

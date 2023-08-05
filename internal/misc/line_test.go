@@ -1,4 +1,4 @@
-package _test
+package misc
 
 import (
 	"github.com/stretchr/testify/assert"

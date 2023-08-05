@@ -2,7 +2,7 @@ package easyshell
 
 import (
 	"github.com/3th1nk/easygo/util"
-	"github.com/3th1nk/easyshell/internal/_test"
+	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"testing"
@@ -29,7 +29,7 @@ func TestCmdShell_1(t *testing.T) {
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
 	assert.LessOrEqual(t, 8, len(out))
-	assert.True(t, _test.HasLine(out, "ping statistics") || _test.HasLine(out, "Ping 统计信息"))
+	assert.True(t, misc.HasLine(out, "ping statistics") || misc.HasLine(out, "Ping 统计信息"))
 }
 
 func TestCmdShell_2(t *testing.T) {
@@ -58,6 +58,6 @@ func TestCmdShell_2(t *testing.T) {
 
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
-	assert.True(t, _test.HasLine(out, "个文件"))
-	assert.True(t, _test.HasLine(out, "个目录"))
+	assert.True(t, misc.HasLine(out, "个文件"))
+	assert.True(t, misc.HasLine(out, "个目录"))
 }

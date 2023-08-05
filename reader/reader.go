@@ -4,23 +4,25 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/3th1nk/easygo/util"
+	"github.com/3th1nk/easyshell/errors"
 	"github.com/3th1nk/easyshell/internal/lazyOut"
 	"github.com/3th1nk/easyshell/internal/lineReader"
-	"github.com/3th1nk/easyshell/pkg/errors"
-	"github.com/3th1nk/easyshell/pkg/injector"
+	"github.com/3th1nk/easyshell/pkg/interceptor"
 	"io"
 	"regexp"
 	"strings"
 	"time"
 )
 
+const (
+	promptTailChars = `#$>:~%\]`
+	promptSuffix    = `[\s\S]*[` + promptTailChars + `]+\s*$`
+)
+
 var (
-	promptTailChars  = `#$>:~%\]`
-	promptSuffix     = `[\s\S]*[` + promptTailChars + `]+\s*$`
-	defaultInjectors = []injector.InputInjector{
-		injector.More(),
-		injector.Continue(),
-		injector.AlwaysNo(),
+	defaultInterceptors = []interceptor.Interceptor{
+		interceptor.More(),
+		interceptor.Continue(),
 	}
 	defaultEndPromptRegexp = regexp.MustCompile(`\S+` + promptSuffix)
 )
@@ -87,15 +89,15 @@ func (r *Reader) WriteRaw(b []byte) (err error) {
 	return nil
 }
 
-func (r *Reader) ReadToEndLine(timeout time.Duration, onOut func(lines []string), injector ...injector.InputInjector) (err error) {
-	return r.Read(true, timeout, onOut, injector...)
+func (r *Reader) ReadToEndLine(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+	return r.Read(true, timeout, onOut, interceptors...)
 }
 
-func (r *Reader) ReadAll(timeout time.Duration, onOut func(lines []string), injector ...injector.InputInjector) (err error) {
-	return r.Read(false, timeout, onOut, injector...)
+func (r *Reader) ReadAll(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+	return r.Read(false, timeout, onOut, interceptors...)
 }
 
-func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), injectors ...injector.InputInjector) (err error) {
+func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	if r.cfg.BeforeRead != nil {
 		if err = r.cfg.BeforeRead(); err != nil {
 			return err
@@ -108,7 +110,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 	}
 
 	timeoutAt := time.Now().Add(timeout)
-	var injectStr string
+	var lineBuf string
 	var stop bool
 	var confirm int
 	for {
@@ -132,24 +134,21 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 			stop = false
 
 			// 缓存区所有内容
-			if len(injectors) != 0 {
-				if injectStr == "" {
-					injectStr = strings.Join(lines, "\n")
+			if len(interceptors) != 0 {
+				if lineBuf == "" {
+					lineBuf = strings.Join(lines, "\n")
 				} else {
-					injectStr += "\n" + strings.Join(lines, "\n")
+					lineBuf += "\n" + strings.Join(lines, "\n")
 				}
 				if remaining != "" {
-					injectStr += "\n" + remaining
+					lineBuf += "\n" + remaining
 				}
-				for _, f := range injectors {
-					if match, showOut, input := f(injectStr); match {
-						// 重置 injectStr
-						injectStr = ""
-						// 如果匹配到了 Injector，则将 line 当作新行输出
+				for _, f := range interceptors {
+					if match, showOut, input := f(lineBuf); match {
+						lineBuf = ""
 						if showOut && remaining != "" && onOut != nil {
 							onOut([]string{remaining})
 						}
-						// input
 						_, _ = r.in.Write([]byte(input))
 						return true
 					}
@@ -158,15 +157,12 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 
 			// 最后一行内容
 			if remaining != "" {
-				for _, f := range defaultInjectors {
+				for _, f := range defaultInterceptors {
 					if match, showOut, input := f(remaining); match {
-						// 重置 injectStr
-						injectStr = ""
-						// 如果匹配到了 Injector，则将 line 当作新行输出
+						lineBuf = ""
 						if showOut && onOut != nil {
 							onOut([]string{remaining})
 						}
-						// input
 						_, _ = r.in.Write([]byte(input))
 						return true
 					}
