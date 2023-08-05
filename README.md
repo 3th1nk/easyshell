@@ -10,7 +10,7 @@
 ## 代码片段
 - 本地执行命令
 ```
-    s := NewCmdShell("ping www.baidu.com")
+    s := NewCmdShell("ping www.baidu.com", nil)
     if err := s.ReadAll(time.Minute, func(lines []string) {
         // handle lines
     }); err != nil {
@@ -19,7 +19,7 @@
     
     ...
     
-    s2 := NewCmdShell("cmd /K")
+    s2 := NewCmdShell("cmd /K", nil)
     for _, cmd := range []string{"c:", "dir"} {
         s2.Write(cmd)
         if err := s2.ReadToEndLine(time.Minute, func(lines []string) {
