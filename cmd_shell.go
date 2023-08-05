@@ -2,7 +2,7 @@ package easyshell
 
 import (
 	"context"
-	"github.com/3th1nk/easyshell/pkg/reader"
+	"github.com/3th1nk/easyshell/reader"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"os/exec"
 	"regexp"

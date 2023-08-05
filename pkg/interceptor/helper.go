@@ -1,4 +1,4 @@
-package injector
+package interceptor
 
 import (
 	"strings"

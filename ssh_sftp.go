@@ -2,7 +2,7 @@ package easyshell
 
 import (
 	"fmt"
-	"github.com/3th1nk/easyshell/pkg/errors"
+	"github.com/3th1nk/easyshell/errors"
 	"github.com/pkg/sftp"
 	"os"
 	"path/filepath"

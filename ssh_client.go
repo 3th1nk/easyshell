@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easygo/util/arrUtil"
-	"github.com/3th1nk/easyshell/pkg/errors"
+	"github.com/3th1nk/easyshell/errors"
 	"golang.org/x/crypto/ssh"
 	"net"
 	"time"

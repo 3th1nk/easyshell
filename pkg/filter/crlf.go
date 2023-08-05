@@ -2,8 +2,8 @@ package filter
 
 import "bytes"
 
-// crlfFilter 处理回车换行
-func crlfFilter(s []byte) []byte {
+// CrlfFilter 处理回车换行
+func CrlfFilter(s []byte) []byte {
 	length := len(s)
 	for pos := 0; pos < length; {
 		if s[pos] != '\r' {

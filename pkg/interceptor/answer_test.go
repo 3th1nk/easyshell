@@ -1,11 +1,11 @@
-package injector
+package interceptor
 
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestSayNo(t *testing.T) {
+func TestAlwaysNo(t *testing.T) {
 	for _, unit := range []struct {
 		str      string
 		expected bool

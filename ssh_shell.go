@@ -2,9 +2,9 @@ package easyshell
 
 import (
 	"github.com/3th1nk/easygo/util"
-	"github.com/3th1nk/easyshell/internal/_test"
-	"github.com/3th1nk/easyshell/pkg/errors"
-	"github.com/3th1nk/easyshell/pkg/reader"
+	"github.com/3th1nk/easyshell/errors"
+	"github.com/3th1nk/easyshell/internal/misc"
+	"github.com/3th1nk/easyshell/reader"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"time"
@@ -86,7 +86,7 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 	_ = r.ReadToEndLine(3*time.Second, func(lines []string) {
 		headLine = append(headLine, lines...)
 	})
-	headLine = _test.TrimEmptyLine(headLine)
+	headLine = misc.TrimEmptyLine(headLine)
 
 	return &SshShell{Reader: r, client: client, session: session, headLine: headLine}, nil
 }
