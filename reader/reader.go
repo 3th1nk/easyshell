@@ -1,7 +1,6 @@
 package reader
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/errors"
@@ -15,7 +14,7 @@ import (
 )
 
 const (
-	promptTailChars = `#$>:~%\]`
+	promptTailChars = `#$>)\]:~%`
 	promptSuffix    = `[\s\S]*[` + promptTailChars + `]+\s*$`
 )
 
@@ -259,32 +258,78 @@ func (r *Reader) IsEndLine(s string) bool {
 }
 
 // findEndPromptRegexp
-//	！！！由于提示符的格式非常自由，特别是主机上，自动纠正有可能反而导致无法匹配，应视情况使用 ！！！
+//	！！！由于提示符的格式非常自由，自动识别有可能错误，应视情况使用 ！！！
 func findEndPromptRegexp(remaining string) *regexp.Regexp {
-	if remaining == "" {
-		return nil
-	}
-
 	// 由于提示符在交互过程中可能会变化，这里先提取一下主机名，再通配一下尾部
-	//	网络设备进入配置模式：hostname# => hostname(config)#
-	//  主机切换用户：user1@hostname# => user2@hostname#
-	// 如果包含（常用的）分隔符，默认取分隔符之后的内容作为主机名
-	hostname := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(remaining), promptTailChars))
-	for _, sep := range []byte{'@', '.'} {
-		if idx := bytes.IndexByte([]byte(hostname), sep); idx != -1 {
-			hostname = hostname[idx+1:]
-			break
-		}
-	}
+	//  场景：
+	//	1.网络设备配置进入模式
+	//		hostname# => hostname(config)#
+	//	2.主机切换用户
+	//		user1@hostname# => user2@hostname#
+	// 	3.华为防火墙开启双机热备，主：HRP_M（旧版本：HRP-A）、备：HRP_S
+	//		[USG6000V1]hrp enable
+	//		HRP_M[USG6000V1]
+	hostname := findHostname(remaining)
 	if hostname == "" {
 		return nil
 	}
 
-	// 存在提示符被省略的情况，如 山石防火墙：S-ABC-D1-EFG-~(M)#
+	// 存在提示符被省略的情况，虽然findHostname处理过山石防火墙的情况，但是还是有可能出现其他情况，这里再通配一下
+	//	山石防火墙：S-ABC-D1-EFG-~(M)#
 	runStr := []rune(hostname)
 	if len(runStr) > 10 {
 		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string(runStr[:10]))
 	}
 	prompt := `(?i)` + hostname + promptSuffix
 	return regexp.MustCompile(prompt)
+}
+
+func findHostname(remaining string) string {
+	if remaining == "" {
+		return ""
+	}
+
+	// 提示符格式非常自由，设备类型、厂商、用户配置不同，提示符格式也不同，可能包含中文、特殊字符，这里只能尽量匹配
+	//	1.Linux主机：
+	//		[root@localhost ~]#
+	//		[localhost.localdomain ~]$
+	//  2.网络设备配置模式：
+	//		hostname#
+	//		hostname(config)#
+	//  3.中文主机名：
+	//		中文主机名 #
+	//	4.华为防火墙：
+	//		<HUAWEI>hrp enable
+	//		HRP_M<HUAWEI> system-view
+	//		HRP_M[HUAWEI] diagnose
+	//		HRP_M[HUAWEI-diagnose] display firewall cpu-table
+	//	5.山石防火墙，主机名超过长度缩写：
+	//		S-ABC-D1-EFG-~(M)#
+	//	6.提示符的结束字符可能有多种情况：
+	//		# $ > ) ] : ~ %
+
+	// 移除结束符以及前后空格
+	hostname := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(remaining), promptTailChars))
+	// 如果包含@，取@后面的内容作为主机名
+	if idx := strings.IndexByte(hostname, '@'); idx != -1 {
+		hostname = hostname[idx+1:]
+	}
+	// 如果包含.，取.前面的内容作为主机名
+	if idx := strings.IndexByte(hostname, '.'); idx != -1 {
+		hostname = hostname[:idx]
+	}
+	// 如果包含空格、波浪号，取空格、波浪号前面内容作为主机名
+	if idx := strings.IndexAny(hostname, " ~"); idx != -1 {
+		hostname = hostname[:idx]
+	}
+	// 如果包含左括号，取左括号后面的内容作为主机名
+	if idx := strings.IndexAny(hostname, "<(["); idx != -1 {
+		hostname = hostname[idx+1:]
+	}
+	// 如果包含右括号，取右括号前面的内容作为主机名
+	if idx := strings.IndexAny(hostname, ">)]"); idx != -1 {
+		hostname = hostname[:idx]
+	}
+
+	return hostname
 }

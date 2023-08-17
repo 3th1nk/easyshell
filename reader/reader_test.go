@@ -37,9 +37,20 @@ func TestDefaultEndPromptRegexp(t *testing.T) {
 	}
 }
 
-func TestFindEndPromptRegexp(t *testing.T) {
-	promptStr := "root@HA-备_试试长一点的中文 #"
-	re := findEndPromptRegexp(promptStr)
-	t.Log(re.String())
-	assert.Equal(t, true, re.MatchString(promptStr))
+func TestFindHostname(t *testing.T) {
+	for _, obj := range []struct {
+		Remaining string
+		Hostname  string
+	}{
+		{"root@HA-备 #", "HA-备"},
+		{"[root@localhost ~]#", "localhost"},
+		{"[localhost.localdomain ~]$", "localhost"},
+		{"hostname#", "hostname"},
+		{"<HUAWEI>hrp enable", "HUAWEI"},
+		{"中文主机名 #", "中文主机名"},
+		{"HRP_M[HUAWEI] diagnose", "HUAWEI"},
+		{"S-ABC-D1-EFG-~(M)# ", "S-ABC-D1-EFG-"},
+	} {
+		assert.Equal(t, obj.Hostname, findHostname(obj.Remaining))
+	}
 }
