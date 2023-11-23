@@ -13,7 +13,7 @@ import (
 type SshShellConfig struct {
 	reader.Config
 	Credential *SshCredential // 凭证
-	Echo       bool           // 模拟终端回显，默认值 false，网络设备上无效（总是回显）
+	Echo       bool           // 模拟终端回显，默认值 false，部分网络设备上无效（总是回显）
 	Term       string         // 模拟终端类型，默认值 VT100
 	TermHeight int            // 模拟终端高度，默认值 200
 	TermWidth  int            // 模拟终端宽度，默认值 80
@@ -64,9 +64,9 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 
 	echo := util.IfInt(config.Echo, 1, 0)
 	if err = session.RequestPty(config.Term, config.TermHeight, config.TermWidth, ssh.TerminalModes{
-		ssh.ECHO:          uint32(echo), // disable echoing
-		ssh.TTY_OP_ISPEED: 14400,        // input speed
-		ssh.TTY_OP_OSPEED: 14400,        // output speed
+		ssh.ECHO:          uint32(echo),
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
 	}); err != nil {
 		_ = session.Close()
 		return nil, &errors.Error{Op: "term", Addr: addr, Err: err}
@@ -119,16 +119,24 @@ func (this *SshShell) Close() (err error) {
 		if e := this.sftp.Close(); e != nil {
 			err = e
 		}
+		this.sftp = nil
 	}
-	if e := this.session.Close(); e != nil && err == nil {
-		err = e
-	}
-	if this.ownClient {
-		if e := this.client.Close(); e != nil && err == nil {
+
+	if this.session != nil {
+		if e := this.session.Close(); e != nil && err == nil {
 			err = e
 		}
+		this.session = nil
 	}
-	this.sftp, this.session, this.client = nil, nil, nil
+
+	if this.client != nil {
+		if this.ownClient {
+			if e := this.client.Close(); e != nil && err == nil {
+				err = e
+			}
+		}
+		this.client = nil
+	}
 	this.Reader.Stop()
 	return
 }

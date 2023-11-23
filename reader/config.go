@@ -13,14 +13,14 @@ type Config struct {
 	Decoder func(b []byte) ([]byte, error)
 
 	// 命令行提示符的匹配规则
-	EndPrompt []*regexp.Regexp
+	PromptRegex []*regexp.Regexp
 
-	// 是否自动纠正命令行提示符，仅当未指定 EndPrompt 时有效
+	// 是否自动纠正命令行提示符，仅当未指定 PromptRegex 时有效
 	//	该参数为true时，会在默认规则第一次匹配到结束符时尝试修正匹配规则，某些情况下可能修正后的规则不如默认规则灵活，慎用
-	AutoEndPrompt bool
+	AutoPrompt bool
 
 	// 是否输出命令行提示符
-	ShowEndPrompt bool
+	ShowPrompt bool
 
 	// 调用 ReadToEndLine 时的确认次数
 	ReadConfirm int
