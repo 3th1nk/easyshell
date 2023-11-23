@@ -3,9 +3,9 @@ package easyshell
 import (
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easygo/util/arrUtil"
+	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/interceptor"
-	"github.com/3th1nk/easyshell/reader"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"testing"
@@ -102,7 +102,7 @@ func TestSshShell_Ping(t *testing.T) {
 func TestSshShell_PingLazyInterval(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
-		Config:     reader.Config{LazyOutInterval: 2 * time.Second},
+		Config:     core.Config{LazyOutInterval: 2 * time.Second},
 	})
 	if !assert.NoError(t, err) {
 		return
@@ -146,7 +146,7 @@ func TestSshShell_PingLazyInterval(t *testing.T) {
 func TestSshShell_PingLazySize(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
-		Config:     reader.Config{LazyOutSize: 200},
+		Config:     core.Config{LazyOutSize: 200},
 	})
 	if !assert.NoError(t, err) {
 		return
@@ -190,7 +190,7 @@ func TestSshShell_PingLazySize(t *testing.T) {
 func TestSshShell_PingLazy(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
-		Config:     reader.Config{LazyOutInterval: time.Second, LazyOutSize: 200},
+		Config:     core.Config{LazyOutInterval: time.Second, LazyOutSize: 200},
 	})
 	if !assert.NoError(t, err) {
 		return
@@ -303,7 +303,7 @@ func TestSshShell_Sudo(t *testing.T) {
 func TestSshShell_NetDevice_Cisco(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredCisco,
-		Config: reader.Config{
+		Config: core.Config{
 			ShowPrompt: true,
 		},
 		TermHeight: 10,
@@ -346,7 +346,7 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 func TestSshShell_NetDevice_Array(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredArray,
-		Config: reader.Config{
+		Config: core.Config{
 			ShowPrompt: true,
 		},
 		Echo:       true,

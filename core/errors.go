@@ -1,4 +1,4 @@
-package errors
+package core
 
 import (
 	"github.com/3th1nk/easygo/util/strUtil"

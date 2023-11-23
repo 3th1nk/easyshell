@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easygo/util/arrUtil"
-	"github.com/3th1nk/easyshell/errors"
+	"github.com/3th1nk/easyshell/core"
 	"golang.org/x/crypto/ssh"
 	"net"
 	"time"
@@ -66,7 +66,7 @@ func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 	}
 	if cred.PrivateKey != "" {
 		if signer, err := ssh.ParsePrivateKey([]byte(cred.PrivateKey)); err != nil {
-			return nil, &errors.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("privateKey error: %v", err)}
+			return nil, &core.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("privateKey error: %v", err)}
 		} else {
 			sshCfg.Auth = append(sshCfg.Auth, ssh.PublicKeys(signer))
 		}
@@ -79,15 +79,15 @@ func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 		)
 	}
 	if len(sshCfg.Auth) == 0 {
-		return nil, &errors.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("no auth method")}
+		return nil, &core.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("no auth method")}
 	}
 
 	c, e := ssh.Dial("tcp", addr, sshCfg)
 	if e != nil {
 		if v, _ := e.(*net.OpError); v != nil {
-			return nil, &errors.Error{Op: "dial", Addr: addr, Err: e}
+			return nil, &core.Error{Op: "dial", Addr: addr, Err: e}
 		} else {
-			return nil, &errors.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("invalid cred")}
+			return nil, &core.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("invalid cred")}
 		}
 	}
 

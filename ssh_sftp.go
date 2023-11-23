@@ -2,7 +2,7 @@ package easyshell
 
 import (
 	"fmt"
-	"github.com/3th1nk/easyshell/errors"
+	"github.com/3th1nk/easyshell/core"
 	"github.com/pkg/sftp"
 	"os"
 	"path/filepath"
@@ -12,7 +12,7 @@ func (this *SshShell) SftpClient(opt ...sftp.ClientOption) (*sftp.Client, error)
 	if this.sftp == nil {
 		var err error
 		if this.sftp, err = sftp.NewClient(this.client, opt...); err != nil {
-			return nil, &errors.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: err}
+			return nil, &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: err}
 		}
 	}
 	return this.sftp, nil
@@ -29,7 +29,7 @@ check:
 	if rfi != nil {
 		if rfi.IsDir() {
 			if filepath.Base(localPath) == filepath.Base(remotePath) {
-				return &errors.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("remote path is a directory")}
+				return &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("remote path is a directory")}
 			}
 			remotePath = filepath.Join(remotePath, filepath.Base(localPath))
 			goto check
@@ -116,7 +116,7 @@ check:
 	if lfi != nil {
 		if lfi.IsDir() {
 			if filepath.Base(localPath) == filepath.Base(remotePath) {
-				return &errors.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("local path is a directory")}
+				return &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("local path is a directory")}
 			}
 			localPath = filepath.Join(localPath, filepath.Base(remotePath))
 			goto check

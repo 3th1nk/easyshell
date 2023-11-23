@@ -1,25 +1,25 @@
 package easyshell
 
 import (
+	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/telnet"
-	"github.com/3th1nk/easyshell/reader"
 	"strings"
 )
 
 type TelnetShellConfig struct {
-	reader.Config
+	core.Config
 	Credential *TelnetCredential
 }
 
-func ensureInitTelnetShellConfig(c *TelnetShellConfig) {
-	if c == nil {
-		c = &TelnetShellConfig{}
-	}
+func (c *TelnetShellConfig) EnsureInit() {
 }
 
 func NewTelnetShell(config *TelnetShellConfig) (*TelnetShell, error) {
-	ensureInitTelnetShellConfig(config)
+	if config == nil {
+		config = &TelnetShellConfig{}
+	}
+	config.EnsureInit()
 
 	client, e := NewTelnetClient(config.Credential)
 	if e != nil {
@@ -37,19 +37,22 @@ func NewTelnetShell(config *TelnetShellConfig) (*TelnetShell, error) {
 }
 
 func NewTelnetShellFromClient(client *telnet.Client, config *TelnetShellConfig) (*TelnetShell, error) {
-	ensureInitTelnetShellConfig(config)
+	if config == nil {
+		config = &TelnetShellConfig{}
+	}
+	config.EnsureInit()
 
-	r := reader.New(client, client, nil, config.Config)
+	r := core.New(client, client, nil, config.Config)
 	headLine := misc.TrimEmptyLine(strings.Split(client.Welcome(), "\n"))
 	return &TelnetShell{
-		Reader:   r,
-		client:   client,
-		headLine: headLine,
+		ReadWriter: r,
+		client:     client,
+		headLine:   headLine,
 	}, nil
 }
 
 type TelnetShell struct {
-	*reader.Reader
+	*core.ReadWriter
 	client    *telnet.Client
 	ownClient bool
 	headLine  []string
@@ -72,6 +75,6 @@ func (this *TelnetShell) Close() (err error) {
 		}
 		this.client = nil
 	}
-	this.Reader.Stop()
+	this.ReadWriter.Stop()
 	return
 }
