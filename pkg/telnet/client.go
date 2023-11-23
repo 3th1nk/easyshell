@@ -477,6 +477,14 @@ func (this *Client) FirstPrompt() string {
 	return this.promptStr
 }
 
+// ScrollToNewLine 滚动到新的一行
+func (this *Client) ScrollToNewLine() error {
+	if _, err := this.Write([]byte{LF}); err != nil {
+		return err
+	}
+	return this.SkipUtil(LF)
+}
+
 func (this *Client) doAuth() error {
 	var firstRead = true
 	var enterUser, enterPass bool
@@ -537,9 +545,7 @@ func (this *Client) doAuth() error {
 		}
 	}
 
-	// 认证完成后输入一个换行符，确保之后的读写是在新的一行(含提示符)
-	_, _ = this.Write([]byte{LF})
-	// 把上面这个换行符读取掉，避免空行
-	_ = this.SkipUtil(LF)
+	// 认证完成后切换到下一行，确保之后的读写是在新的一行(含提示符)
+	_ = this.ScrollToNewLine()
 	return nil
 }
