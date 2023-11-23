@@ -2,8 +2,8 @@ package easyshell
 
 import (
 	"github.com/3th1nk/easygo/util"
+	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
-	"github.com/3th1nk/easyshell/reader"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -21,7 +21,7 @@ var (
 func TestTelnetShell_NetDevice_Cisco(t *testing.T) {
 	s, err := NewTelnetShell(&TelnetShellConfig{
 		Credential: netCredCiscoTelnet,
-		Config: reader.Config{
+		Config: core.Config{
 			ShowPrompt: true,
 		},
 	})

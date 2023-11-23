@@ -2,16 +2,15 @@ package easyshell
 
 import (
 	"github.com/3th1nk/easygo/util"
-	"github.com/3th1nk/easyshell/errors"
+	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
-	"github.com/3th1nk/easyshell/reader"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"time"
 )
 
 type SshShellConfig struct {
-	reader.Config
+	core.Config
 	Credential *SshCredential // 凭证
 	Echo       bool           // 模拟终端回显，默认值 false，部分网络设备上无效（总是回显）
 	Term       string         // 模拟终端类型，默认值 VT100
@@ -19,10 +18,7 @@ type SshShellConfig struct {
 	TermWidth  int            // 模拟终端宽度，默认值 80
 }
 
-func ensureInitSshShellConfig(c *SshShellConfig) {
-	if c == nil {
-		c = &SshShellConfig{}
-	}
+func (c *SshShellConfig) EnsureInit() {
 	if c.Term == "" {
 		c.Term = "VT100"
 	}
@@ -35,7 +31,10 @@ func ensureInitSshShellConfig(c *SshShellConfig) {
 }
 
 func NewSshShell(config *SshShellConfig) (*SshShell, error) {
-	ensureInitSshShellConfig(config)
+	if config == nil {
+		config = &SshShellConfig{}
+	}
+	config.EnsureInit()
 
 	client, e := NewSshClient(config.Credential)
 	if e != nil {
@@ -54,12 +53,15 @@ func NewSshShell(config *SshShellConfig) (*SshShell, error) {
 }
 
 func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShell, error) {
-	ensureInitSshShellConfig(config)
+	if config == nil {
+		config = &SshShellConfig{}
+	}
+	config.EnsureInit()
 
 	addr := client.RemoteAddr().String()
 	session, err := client.NewSession()
 	if err != nil {
-		return nil, &errors.Error{Op: "session", Addr: addr, Err: err}
+		return nil, &core.Error{Op: "session", Addr: addr, Err: err}
 	}
 
 	echo := util.IfInt(config.Echo, 1, 0)
@@ -69,7 +71,7 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 		ssh.TTY_OP_OSPEED: 14400,
 	}); err != nil {
 		_ = session.Close()
-		return nil, &errors.Error{Op: "term", Addr: addr, Err: err}
+		return nil, &core.Error{Op: "term", Addr: addr, Err: err}
 	}
 
 	pIn, _ := session.StdinPipe()
@@ -78,9 +80,9 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 
 	if err = session.Shell(); err != nil {
 		_ = session.Close()
-		return nil, &errors.Error{Op: "shell", Addr: addr, Err: err}
+		return nil, &core.Error{Op: "shell", Addr: addr, Err: err}
 	}
-	r := reader.New(pIn, pOut, pErr, config.Config)
+	r := core.New(pIn, pOut, pErr, config.Config)
 
 	var headLine []string
 	_ = r.ReadToEndLine(3*time.Second, func(lines []string) {
@@ -88,11 +90,11 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 	})
 	headLine = misc.TrimEmptyLine(headLine)
 
-	return &SshShell{Reader: r, client: client, session: session, headLine: headLine}, nil
+	return &SshShell{ReadWriter: r, client: client, session: session, headLine: headLine}, nil
 }
 
 type SshShell struct {
-	*reader.Reader
+	*core.ReadWriter
 	client    *ssh.Client
 	session   *ssh.Session
 	sftp      *sftp.Client
@@ -137,6 +139,6 @@ func (this *SshShell) Close() (err error) {
 		}
 		this.client = nil
 	}
-	this.Reader.Stop()
+	this.ReadWriter.Stop()
 	return
 }

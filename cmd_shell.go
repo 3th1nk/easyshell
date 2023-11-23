@@ -2,7 +2,7 @@ package easyshell
 
 import (
 	"context"
-	"github.com/3th1nk/easyshell/reader"
+	"github.com/3th1nk/easyshell/core"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"os/exec"
 	"regexp"
@@ -12,16 +12,12 @@ import (
 )
 
 type CmdShellConfig struct {
-	reader.Config
+	core.Config
 	Context context.Context
 	Prepare func(c *exec.Cmd)
 }
 
-func ensureInitCmdShellConfig(c *CmdShellConfig) {
-	if c == nil {
-		c = &CmdShellConfig{}
-	}
-
+func (c *CmdShellConfig) EnsureInit() {
 	switch runtime.GOOS {
 	case "windows":
 		if c.Decoder == nil {
@@ -37,7 +33,10 @@ func ensureInitCmdShellConfig(c *CmdShellConfig) {
 }
 
 func NewCmdShell(cmdAndArgs string, config *CmdShellConfig) *CmdShell {
-	ensureInitCmdShellConfig(config)
+	if config == nil {
+		config = &CmdShellConfig{}
+	}
+	config.EnsureInit()
 
 	arr := splitCmd(cmdAndArgs)
 	var cmd *exec.Cmd
@@ -70,13 +69,13 @@ func NewCmdShell(cmdAndArgs string, config *CmdShellConfig) *CmdShell {
 		}
 	}
 
-	r := reader.New(in, out, err, config.Config)
+	r := core.New(in, out, err, config.Config)
 
-	return &CmdShell{Reader: r, c: cmd}
+	return &CmdShell{ReadWriter: r, c: cmd}
 }
 
 type CmdShell struct {
-	*reader.Reader
+	*core.ReadWriter
 	c *exec.Cmd
 }
 

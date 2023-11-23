@@ -1,9 +1,8 @@
-package reader
+package core
 
 import (
 	"fmt"
 	"github.com/3th1nk/easygo/util"
-	"github.com/3th1nk/easyshell/errors"
 	"github.com/3th1nk/easyshell/internal/lazyOut"
 	"github.com/3th1nk/easyshell/internal/lineReader"
 	"github.com/3th1nk/easyshell/pkg/interceptor"
@@ -26,7 +25,7 @@ var (
 	defaultPromptRegex = regexp.MustCompile(`\S+` + promptSuffix)
 )
 
-func New(in io.Writer, out, err io.Reader, cfg Config) *Reader {
+func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	if cfg.ReadConfirmWait <= 0 {
 		cfg.ReadConfirmWait = 20 * time.Millisecond
 	}
@@ -43,7 +42,7 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *Reader {
 		opts = append(opts, lineReader.WithDecoder(cfg.Decoder))
 	}
 
-	r := &Reader{
+	r := &ReadWriter{
 		in:  in,
 		out: lineReader.New(out, opts...),
 		err: lineReader.New(err, opts...),
@@ -55,14 +54,14 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *Reader {
 	return r
 }
 
-type Reader struct {
+type ReadWriter struct {
 	cfg      Config
 	in       io.Writer
 	out, err *lineReader.LineReader
 	lo       *lazyOut.LazyOut
 }
 
-func (r *Reader) Stop() {
+func (r *ReadWriter) Stop() {
 	if r.lo != nil {
 		r.lo.Stop()
 		r.lo = nil
@@ -71,7 +70,7 @@ func (r *Reader) Stop() {
 }
 
 // Write 写入一个命令（自动在末尾补充 \n 换行符）。
-func (r *Reader) Write(cmd string) (err error) {
+func (r *ReadWriter) Write(cmd string) (err error) {
 	if cmd == "" {
 		cmd = "\n"
 	} else if cmd[len(cmd)-1] != '\n' {
@@ -81,22 +80,22 @@ func (r *Reader) Write(cmd string) (err error) {
 }
 
 // WriteRaw 向输入流写入指定内容，并等待指定时间（默认 10 毫秒）。
-func (r *Reader) WriteRaw(b []byte) (err error) {
+func (r *ReadWriter) WriteRaw(b []byte) (err error) {
 	if len(b) != 0 {
 		_, err = r.in.Write(b)
 	}
 	return nil
 }
 
-func (r *Reader) ReadToEndLine(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+func (r *ReadWriter) ReadToEndLine(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	return r.Read(true, timeout, onOut, interceptors...)
 }
 
-func (r *Reader) ReadAll(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+func (r *ReadWriter) ReadAll(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	return r.Read(false, timeout, onOut, interceptors...)
 }
 
-func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+func (r *ReadWriter) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	if r.cfg.BeforeRead != nil {
 		if err = r.cfg.BeforeRead(); err != nil {
 			return err
@@ -172,12 +171,12 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 		if e != nil {
 			// 保留 err 后退出循环，继续后续的 err.PopLines
 			if e != io.EOF && e != io.ErrClosedPipe && e != io.ErrNoProgress && e != io.ErrUnexpectedEOF {
-				err = &errors.Error{Op: "read", Err: e}
+				err = &Error{Op: "read", Err: e}
 			}
 			break
 		}
 		if !time.Now().Before(timeoutAt) {
-			return &errors.Error{Op: "timeout"}
+			return &Error{Op: "timeout"}
 		}
 		// util.PrintTimeLn("--> stop=%v, confirm=%v", stop, confirm)
 		if stop {
@@ -228,7 +227,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 			time.Sleep(r.cfg.ReadConfirmWait)
 		}
 		if errMsg != "" {
-			err = &errors.Error{Op: "read", Err: fmt.Errorf(errMsg)}
+			err = &Error{Op: "read", Err: fmt.Errorf(errMsg)}
 		}
 	}
 
@@ -239,7 +238,7 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 	return
 }
 
-func (r *Reader) IsEndLine(s string) bool {
+func (r *ReadWriter) IsEndLine(s string) bool {
 	if len(r.cfg.PromptRegex) != 0 {
 		for _, v := range r.cfg.PromptRegex {
 			if v != nil && v.MatchString(s) {
