@@ -23,7 +23,7 @@ var (
 		Host:     "192.168.2.14",
 		Port:     22,
 		User:     "admin",
-		Password: "admin123",
+		Password: "geesunn123",
 	}
 	netCredArray = &SshCredential{
 		Host:     "192.168.1.16",
@@ -304,7 +304,7 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredCisco,
 		Config: reader.Config{
-			ShowEndPrompt: true,
+			ShowPrompt: true,
 		},
 		TermHeight: 10,
 	})
@@ -347,7 +347,7 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredArray,
 		Config: reader.Config{
-			ShowEndPrompt: true,
+			ShowPrompt: true,
 		},
 		Echo:       true,
 		TermHeight: 10,

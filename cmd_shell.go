@@ -28,10 +28,10 @@ func ensureInitCmdShellConfig(c *CmdShellConfig) {
 			c.Decoder = simplifiedchinese.GB18030.NewDecoder().Bytes
 		}
 
-		if len(c.EndPrompt) == 0 {
+		if len(c.PromptRegex) == 0 {
 			//  "C:\\Users\\Administrator>"
 			//	"PS C:\\Users\\Administrator>"
-			c.EndPrompt = []*regexp.Regexp{regexp.MustCompile(`\S+>\s*$`)}
+			c.PromptRegex = []*regexp.Regexp{regexp.MustCompile(`\S+>\s*$`)}
 		}
 	}
 }

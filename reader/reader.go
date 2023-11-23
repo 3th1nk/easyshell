@@ -23,7 +23,7 @@ var (
 		interceptor.More(),
 		interceptor.Continue(),
 	}
-	defaultEndPromptRegexp = regexp.MustCompile(`\S+` + promptSuffix)
+	defaultPromptRegex = regexp.MustCompile(`\S+` + promptSuffix)
 )
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *Reader {
@@ -120,15 +120,15 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 
 			// 命令行结束提示符
 			if remaining != "" && r.IsEndLine(remaining) {
-				// 仅当默认的提示符匹配规则匹配上 且 AutoEndPrompt=true 时，尝试自动纠正提示符匹配规则
-				if len(r.cfg.EndPrompt) == 0 && r.cfg.AutoEndPrompt {
-					if re := findEndPromptRegexp(remaining); re != nil {
-						r.cfg.EndPrompt = append(r.cfg.EndPrompt, re)
+				// 仅当默认的提示符匹配规则匹配上 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
+				if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
+					if re := findPromptRegex(remaining); re != nil {
+						r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
 						util.PrintTimeLn("correct end prompt regex:" + re.String())
 					}
 				}
 				stop = stopOnEndLine
-				return !r.cfg.ShowEndPrompt
+				return !r.cfg.ShowPrompt
 			}
 			stop = false
 
@@ -240,26 +240,26 @@ func (r *Reader) Read(stopOnEndLine bool, timeout time.Duration, onOut func(line
 }
 
 func (r *Reader) IsEndLine(s string) bool {
-	if len(r.cfg.EndPrompt) != 0 {
-		for _, v := range r.cfg.EndPrompt {
+	if len(r.cfg.PromptRegex) != 0 {
+		for _, v := range r.cfg.PromptRegex {
 			if v != nil && v.MatchString(s) {
-				//util.PrintTimeLn("end prompt matched:" + s)
+				//util.PrintTimeLn("prompt matched:" + s)
 				return true
 			}
 		}
 		return false
 	}
 
-	if defaultEndPromptRegexp.MatchString(s) {
-		//util.PrintTimeLn("default end prompt matched:" + s)
+	if defaultPromptRegex.MatchString(s) {
+		//util.PrintTimeLn("default prompt matched:" + s)
 		return true
 	}
 	return false
 }
 
-// findEndPromptRegexp
+// findPromptRegex
 //	！！！由于提示符的格式非常自由，自动识别有可能错误，应视情况使用 ！！！
-func findEndPromptRegexp(remaining string) *regexp.Regexp {
+func findPromptRegex(remaining string) *regexp.Regexp {
 	// 由于提示符在交互过程中可能会变化，这里先提取一下主机名，再通配一下尾部
 	//  场景：
 	//	1.网络设备配置进入模式
