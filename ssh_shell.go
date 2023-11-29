@@ -110,10 +110,8 @@ func (this *SshShell) Session() *ssh.Session {
 	return this.session
 }
 
-func (this *SshShell) PopHeadLine() []string {
-	headLine := this.headLine
-	this.headLine = nil
-	return headLine
+func (this *SshShell) HeadLine() []string {
+	return this.headLine
 }
 
 func (this *SshShell) Close() (err error) {

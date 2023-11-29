@@ -5,6 +5,7 @@ import (
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/telnet"
 	"strings"
+	"time"
 )
 
 type TelnetShellConfig struct {
@@ -43,6 +44,10 @@ func NewTelnetShellFromClient(client *telnet.Client, config *TelnetShellConfig) 
 	config.EnsureInit()
 
 	r := core.New(client, client, nil, config.Config)
+	// 读取提示符
+	_ = r.Write("")
+	_ = r.ReadToEndLine(3*time.Second, func(lines []string) {})
+
 	headLine := misc.TrimEmptyLine(strings.Split(client.Welcome(), "\n"))
 	return &TelnetShell{
 		ReadWriter: r,
@@ -62,10 +67,8 @@ func (this *TelnetShell) Client() *telnet.Client {
 	return this.client
 }
 
-func (this *TelnetShell) PopHeadLine() []string {
-	headLine := this.headLine
-	this.headLine = nil
-	return headLine
+func (this *TelnetShell) HeadLine() []string {
+	return this.headLine
 }
 
 func (this *TelnetShell) Close() (err error) {
