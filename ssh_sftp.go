@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 )
 
-func (this *SshShell) SftpClient(opt ...sftp.ClientOption) (*sftp.Client, error) {
+// Sftp 获取sftp客户端，调用方无需Close
+func (this *SshShell) Sftp(opt ...sftp.ClientOption) (*sftp.Client, error) {
 	if this.sftp == nil {
 		var err error
 		if this.sftp, err = sftp.NewClient(this.client, opt...); err != nil {
@@ -89,8 +90,8 @@ func (this *SshShell) uploadDir(cli *sftp.Client, localPath, remotePath string, 
 	return nil
 }
 
-func (this *SshShell) Upload(localPath, remotePath string, force bool) error {
-	cli, err := this.SftpClient(sftp.MaxPacket(1 << 15))
+func (this *SshShell) SftpUpload(localPath, remotePath string, force bool) error {
+	cli, err := this.Sftp(sftp.MaxPacket(1 << 15))
 	if err != nil {
 		return err
 	}
@@ -106,7 +107,7 @@ func (this *SshShell) Upload(localPath, remotePath string, force bool) error {
 	return this.uploadFile(cli, localPath, remotePath, force)
 }
 
-func (this *SshShell) downloadFile(cli *sftp.Client, remotePath, localPath string, force bool) error {
+func (this *SshShell) downFile(cli *sftp.Client, remotePath, localPath string, force bool) error {
 
 check:
 	lfi, err := os.Stat(localPath)
@@ -147,7 +148,7 @@ check:
 	return err
 }
 
-func (this *SshShell) downloadDir(cli *sftp.Client, remotePath, localPath string, force bool) error {
+func (this *SshShell) downDir(cli *sftp.Client, remotePath, localPath string, force bool) error {
 	remoteFiles, err := cli.ReadDir(remotePath)
 	if err != nil {
 		return err
@@ -161,11 +162,11 @@ func (this *SshShell) downloadDir(cli *sftp.Client, remotePath, localPath string
 		remoteFilePath := filepath.Join(remotePath, remoteFile.Name())
 		localFilePath := filepath.Join(localPath, remoteFile.Name())
 		if remoteFile.IsDir() {
-			if err = this.downloadDir(cli, remoteFilePath, localFilePath, force); err != nil {
+			if err = this.downDir(cli, remoteFilePath, localFilePath, force); err != nil {
 				return err
 			}
 		} else {
-			if err = this.downloadFile(cli, remoteFilePath, localFilePath, force); err != nil {
+			if err = this.downFile(cli, remoteFilePath, localFilePath, force); err != nil {
 				if !force && os.IsExist(err) {
 					continue
 				}
@@ -176,8 +177,8 @@ func (this *SshShell) downloadDir(cli *sftp.Client, remotePath, localPath string
 	return nil
 }
 
-func (this *SshShell) Download(remotePath, localPath string, force bool) error {
-	cli, err := this.SftpClient(sftp.MaxPacket(1 << 15))
+func (this *SshShell) SftpDown(remotePath, localPath string, force bool) error {
+	cli, err := this.Sftp(sftp.MaxPacket(1 << 15))
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,33 @@ func (this *SshShell) Download(remotePath, localPath string, force bool) error {
 		return err
 	}
 	if rfi.IsDir() {
-		return this.downloadDir(cli, remotePath, localPath, force)
+		return this.downDir(cli, remotePath, localPath, force)
 	}
-	return this.downloadFile(cli, remotePath, localPath, force)
+	return this.downFile(cli, remotePath, localPath, force)
+}
+
+// SftpRemove 删除远程文件、目录，如果是目录，则递归删除目录及子目录下的所有文件
+func (this *SshShell) SftpRemove(path string) error {
+	cli, err := this.Sftp(sftp.MaxPacket(1 << 15))
+	if err != nil {
+		return err
+	}
+	fi, err := cli.Stat(path)
+	if err != nil {
+		return err
+	}
+	if fi.IsDir() {
+		fiArr, err := cli.ReadDir(path)
+		if err != nil {
+			return err
+		}
+		// 不能直接删除非空目录，需要先删除其下的文件
+		for _, f := range fiArr {
+			if err = this.SftpRemove(filepath.Join(path, f.Name())); err != nil {
+				return err
+			}
+		}
+		return cli.RemoveDirectory(path)
+	}
+	return cli.Remove(path)
 }

@@ -21,6 +21,14 @@ func Regexp(regex *regexp.Regexp, input string, format func(string) string, show
 	}
 }
 
+func LastLineRegex(regex *regexp.Regexp, input string, showOut ...bool) Interceptor {
+	return Regexp(regex, input, LastLine, showOut...)
+}
+
 func Pattern(pattern string, input string, format func(string) string, showOut ...bool) Interceptor {
 	return Regexp(regexp.MustCompile(pattern), input, format, showOut...)
+}
+
+func LastLinePattern(pattern string, input string, showOut ...bool) Interceptor {
+	return Regexp(regexp.MustCompile(pattern), input, LastLine, showOut...)
 }

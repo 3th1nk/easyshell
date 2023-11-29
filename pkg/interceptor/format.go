@@ -5,7 +5,7 @@ import (
 	"unicode"
 )
 
-func lastLine(str string) string {
+func LastLine(str string) string {
 	str = strings.TrimRightFunc(str, unicode.IsSpace)
 	if i := strings.LastIndexByte(str, '\n'); i != -1 {
 		str = str[i+1:]
@@ -13,7 +13,7 @@ func lastLine(str string) string {
 	return str
 }
 
-func appendLF(s string) string {
+func AppendLF(s string) string {
 	if len(s) == 0 {
 		return "\n"
 	}
