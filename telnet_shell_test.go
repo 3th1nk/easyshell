@@ -31,9 +31,10 @@ func TestTelnetShell_NetDevice_Cisco(t *testing.T) {
 	defer s.Close()
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
+	util.PrintTimeLn(s.Prompt())
 
 	var out []string
 	for _, cmd := range []string{

@@ -70,7 +70,7 @@ func TestSshShell_Ping(t *testing.T) {
 	}
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 
@@ -114,7 +114,7 @@ func TestSshShell_PingLazyInterval(t *testing.T) {
 	}
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 
@@ -158,7 +158,7 @@ func TestSshShell_PingLazySize(t *testing.T) {
 	}
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 
@@ -202,7 +202,7 @@ func TestSshShell_PingLazy(t *testing.T) {
 	}
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 
@@ -256,6 +256,9 @@ func TestSshShell_ReadInput(t *testing.T) {
 
 func TestSshShell_Sudo(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
+		Config: core.Config{
+			ShowPrompt: true,
+		},
 		Credential: hostCred,
 	})
 	if !assert.NoError(t, err) {
@@ -264,12 +267,11 @@ func TestSshShell_Sudo(t *testing.T) {
 	defer s.Close()
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 
 	var out []string
-
 	for _, cmd := range []string{
 		"whoami",
 		"su root",
@@ -314,7 +316,7 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 	defer s.Close()
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 
@@ -358,7 +360,7 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 	defer s.Close()
 
 	util.Println("======================================================= first line:")
-	for _, line := range s.PopHeadLine() {
+	for _, line := range s.HeadLine() {
 		util.PrintTimeLn(line)
 	}
 

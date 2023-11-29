@@ -59,6 +59,7 @@ type ReadWriter struct {
 	in       io.Writer
 	out, err *lineReader.LineReader
 	lo       *lazyOut.LazyOut
+	prompt   string
 }
 
 func (r *ReadWriter) Stop() {
@@ -85,6 +86,11 @@ func (r *ReadWriter) WriteRaw(b []byte) (err error) {
 		_, err = r.in.Write(b)
 	}
 	return nil
+}
+
+// Prompt 命令交互过程中提示符可能发生变化，该方法获取最新的提示符
+func (r *ReadWriter) Prompt() string {
+	return r.prompt
 }
 
 func (r *ReadWriter) ReadToEndLine(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
@@ -119,6 +125,7 @@ func (r *ReadWriter) Read(stopOnEndLine bool, timeout time.Duration, onOut func(
 
 			// 命令行结束提示符
 			if remaining != "" && r.IsEndLine(remaining) {
+				r.prompt = remaining
 				// 仅当默认的提示符匹配规则匹配上 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
 				if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
 					if re := findPromptRegex(remaining); re != nil {
