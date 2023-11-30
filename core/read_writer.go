@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/internal/lazyOut"
@@ -94,14 +96,18 @@ func (r *ReadWriter) Prompt() string {
 }
 
 func (r *ReadWriter) ReadToEndLine(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
-	return r.Read(true, timeout, onOut, interceptors...)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return r.Read(ctx, true, onOut, interceptors...)
 }
 
 func (r *ReadWriter) ReadAll(timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
-	return r.Read(false, timeout, onOut, interceptors...)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return r.Read(ctx, false, onOut, interceptors...)
 }
 
-func (r *ReadWriter) Read(stopOnEndLine bool, timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	if r.cfg.BeforeRead != nil {
 		if err = r.cfg.BeforeRead(); err != nil {
 			return err
@@ -113,92 +119,104 @@ func (r *ReadWriter) Read(stopOnEndLine bool, timeout time.Duration, onOut func(
 		onOut = r.lo.Add
 	}
 
-	timeoutAt := time.Now().Add(timeout)
+	ticker := time.NewTicker(r.cfg.ReadConfirmWait)
+	defer ticker.Stop()
+
 	var lineBuf string
 	var stop bool
 	var confirm int
 	for {
-		_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
-			if len(lines) != 0 && onOut != nil {
-				onOut(lines)
+		select {
+		case <-ctx.Done():
+			switch err = ctx.Err(); {
+			default:
+				return &Error{Op: "read", Err: err}
+			case errors.Is(err, context.DeadlineExceeded):
+				return &Error{Op: "timeout", Err: err}
+			case errors.Is(err, context.Canceled):
+				return &Error{Op: "canceled", Err: err}
 			}
 
-			// 命令行结束提示符
-			if remaining != "" && r.IsEndLine(remaining) {
-				r.prompt = remaining
-				// 仅当默认的提示符匹配规则匹配上 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
-				if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
-					if re := findPromptRegex(remaining); re != nil {
-						r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
-						util.PrintTimeLn("correct end prompt regex:" + re.String())
+		case <-ticker.C:
+			_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
+				if len(lines) != 0 && onOut != nil {
+					onOut(lines)
+				}
+
+				// 命令行结束提示符
+				if remaining != "" && r.IsEndLine(remaining) {
+					r.prompt = remaining
+					// 仅当默认的提示符匹配规则匹配上 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
+					if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
+						if re := findPromptRegex(remaining); re != nil {
+							r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
+							util.PrintTimeLn("correct end prompt regex:" + re.String())
+						}
+					}
+					stop = stopOnEndLine
+					return !r.cfg.ShowPrompt
+				}
+				stop = false
+
+				// 缓存区所有内容
+				if len(interceptors) != 0 {
+					if lineBuf == "" {
+						lineBuf = strings.Join(lines, "\n")
+					} else {
+						lineBuf += "\n" + strings.Join(lines, "\n")
+					}
+					if remaining != "" {
+						lineBuf += "\n" + remaining
+					}
+					for _, f := range interceptors {
+						if match, showOut, input := f(lineBuf); match {
+							lineBuf = ""
+							if showOut && remaining != "" && onOut != nil {
+								onOut([]string{remaining})
+							}
+							_, _ = r.in.Write([]byte(input))
+							return true
+						}
 					}
 				}
-				stop = stopOnEndLine
-				return !r.cfg.ShowPrompt
-			}
-			stop = false
 
-			// 缓存区所有内容
-			if len(interceptors) != 0 {
-				if lineBuf == "" {
-					lineBuf = strings.Join(lines, "\n")
-				} else {
-					lineBuf += "\n" + strings.Join(lines, "\n")
-				}
+				// 最后一行内容
 				if remaining != "" {
-					lineBuf += "\n" + remaining
-				}
-				for _, f := range interceptors {
-					if match, showOut, input := f(lineBuf); match {
-						lineBuf = ""
-						if showOut && remaining != "" && onOut != nil {
-							onOut([]string{remaining})
+					for _, f := range defaultInterceptors {
+						if match, showOut, input := f(remaining); match {
+							lineBuf = ""
+							if showOut && onOut != nil {
+								onOut([]string{remaining})
+							}
+							_, _ = r.in.Write([]byte(input))
+							return true
 						}
-						_, _ = r.in.Write([]byte(input))
-						return true
 					}
 				}
+				return false
+			})
+			if e != nil {
+				// 保留 err 后退出循环，继续后续的 err.PopLines
+				if e != io.EOF && !errors.Is(e, io.ErrClosedPipe) && !errors.Is(e, io.ErrNoProgress) && !errors.Is(e, io.ErrUnexpectedEOF) {
+					err = &Error{Op: "read", Err: e}
+				}
+				goto exit
 			}
 
-			// 最后一行内容
-			if remaining != "" {
-				for _, f := range defaultInterceptors {
-					if match, showOut, input := f(remaining); match {
-						lineBuf = ""
-						if showOut && onOut != nil {
-							onOut([]string{remaining})
-						}
-						_, _ = r.in.Write([]byte(input))
-						return true
-					}
+			// util.PrintTimeLn("--> stop=%v, confirm=%v", stop, confirm)
+			if stop {
+				if confirm >= r.cfg.ReadConfirm {
+					// util.PrintTimeLn("--> stop read out")
+					goto exit
 				}
-			}
-			return false
-		})
-		if e != nil {
-			// 保留 err 后退出循环，继续后续的 err.PopLines
-			if e != io.EOF && e != io.ErrClosedPipe && e != io.ErrNoProgress && e != io.ErrUnexpectedEOF {
-				err = &Error{Op: "read", Err: e}
-			}
-			break
-		}
-		if !time.Now().Before(timeoutAt) {
-			return &Error{Op: "timeout"}
-		}
-		// util.PrintTimeLn("--> stop=%v, confirm=%v", stop, confirm)
-		if stop {
-			if confirm >= r.cfg.ReadConfirm {
-				// util.PrintTimeLn("--> stop read out")
-				break
-			} else {
 				confirm++
+			} else {
+				confirm = 0
 			}
-		} else {
-			confirm = 0
 		}
-		time.Sleep(r.cfg.ReadConfirmWait)
 	}
 
+exit:
 	if r.err != nil {
 		confirm = 0
 		var errMsg string

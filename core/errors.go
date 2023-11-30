@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"github.com/3th1nk/easygo/util/strUtil"
 )
 
@@ -12,6 +13,8 @@ func isOpError(err error, op string) bool {
 }
 
 func IsTimeout(err error) bool { return isOpError(err, "timeout") }
+
+func IsCanceled(err error) bool { return isOpError(err, "canceled") }
 
 func IsDial(err error) bool { return isOpError(err, "dial") }
 
@@ -30,6 +33,9 @@ type Error struct {
 // 是否是超时错误
 func (e *Error) Timeout() bool { return e.Op == "timeout" }
 
+// 是否是取消错误
+func (e *Error) Canceled() bool { return e.Op == "canceled" }
+
 // 是否是连接错误
 func (e *Error) Dial() bool { return e.Op == "dial" }
 
@@ -47,7 +53,11 @@ func (e *Error) Error() string {
 
 	switch e.Op {
 	case "timeout":
-		return "context deadline exceeded"
+		return context.DeadlineExceeded.Error()
+
+	case "canceled":
+		return context.Canceled.Error()
+
 	default:
 		s := e.Op + " error"
 		if e.Err != nil {
