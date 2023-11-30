@@ -1,6 +1,8 @@
 package easyshell
 
 import (
+	"context"
+	"errors"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easygo/util/arrUtil"
 	"github.com/3th1nk/easyshell/core"
@@ -226,9 +228,43 @@ func TestSshShell_PingLazy(t *testing.T) {
 
 	util.PrintTimeLn("End: took=%v", time.Since(start))
 
-	assert.LessOrEqual(t, 16, misc.LineCount(out, "bytes from", "): icmp_seq="))
+	assert.LessOrEqual(t, 16, misc.LineCount(out, "bytes from", "icmp_seq="))
 	assert.True(t, misc.HasLine(out, "--- baidu.com ping statistics ---"))
 	assert.True(t, misc.HasLine(out, "rtt min/avg/max/mdev ="))
+}
+
+func TestSshShell_Cancel(t *testing.T) {
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: hostCred,
+		Config:     core.Config{LazyOutInterval: time.Second, LazyOutSize: 200},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	go func() {
+		time.Sleep(time.Second * 2)
+		cancel()
+	}()
+
+	var out []string
+	start := time.Now()
+	_ = s.Write("top -b")
+	err = s.Read(ctx, true, func(lines []string) {
+		out = append(out, lines...)
+		for _, line := range lines {
+			util.PrintTimeLn(line)
+		}
+	})
+	if err == io.EOF {
+		util.PrintTimeLn("-> EOF")
+	} else if err != nil {
+		util.PrintTimeLn("-> error: %v", err)
+		assert.True(t, errors.Is(err, context.Canceled))
+	}
+	util.PrintTimeLn("End: took=%v", time.Since(start))
 }
 
 func TestSshShell_ReadInput(t *testing.T) {
