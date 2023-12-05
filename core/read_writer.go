@@ -122,7 +122,7 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 	ticker := time.NewTicker(r.cfg.ReadConfirmWait)
 	defer ticker.Stop()
 
-	var lineBuf string
+	var outBuf strings.Builder
 	var stop bool
 	var confirm int
 	for {
@@ -155,22 +155,23 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 					}
 					stop = stopOnEndLine
 					return !r.cfg.ShowPrompt
+				} else {
+					stop = false
 				}
-				stop = false
 
-				// 缓存区所有内容
 				if len(interceptors) != 0 {
-					if lineBuf == "" {
-						lineBuf = strings.Join(lines, "\n")
-					} else {
-						lineBuf += "\n" + strings.Join(lines, "\n")
+					// 缓存区所有内容
+					if outBuf.Len() > 0 {
+						outBuf.WriteString("\n")
 					}
+					outBuf.WriteString(strings.Join(lines, "\n"))
 					if remaining != "" {
-						lineBuf += "\n" + remaining
+						outBuf.WriteString("\n")
+						outBuf.WriteString(remaining)
 					}
 					for _, f := range interceptors {
-						if match, showOut, input := f(lineBuf); match {
-							lineBuf = ""
+						if match, showOut, input := f(outBuf.String()); match {
+							outBuf.Reset()
 							if showOut && remaining != "" && onOut != nil {
 								onOut([]string{remaining})
 							}
@@ -184,7 +185,7 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 				if remaining != "" {
 					for _, f := range defaultInterceptors {
 						if match, showOut, input := f(remaining); match {
-							lineBuf = ""
+							outBuf.Reset()
 							if showOut && onOut != nil {
 								onOut([]string{remaining})
 							}
@@ -219,29 +220,27 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 exit:
 	if r.err != nil {
 		confirm = 0
-		var errMsg string
+		var errBuf strings.Builder
 		for {
 			popped, e := r.err.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
-				if errMsg == "" {
-					errMsg = strings.Join(lines, "\n")
-				} else {
-					errMsg += "\n" + strings.Join(lines, "\n")
+				if errBuf.Len() > 0 {
+					errBuf.WriteString("\n")
 				}
+				errBuf.WriteString(strings.Join(lines, "\n"))
 				if remaining != "" {
-					errMsg += "\n" + remaining
+					errBuf.WriteString("\n")
+					errBuf.WriteString(remaining)
 				}
 				return true
 			})
 			if e != nil && err == nil {
-				// 保留 err 后退出循环，继续后续的 err.PopLines
-				if e != io.EOF && e != io.ErrClosedPipe && e != io.ErrNoProgress && e != io.ErrUnexpectedEOF {
+				if e != io.EOF && !errors.Is(e, io.ErrClosedPipe) && !errors.Is(e, io.ErrNoProgress) && !errors.Is(e, io.ErrUnexpectedEOF) {
 					err = e
 				}
 				break
 			}
 			if popped == 0 {
 				if confirm >= r.cfg.ReadConfirm {
-					// util.PrintTimeLn("--> stop read err")
 					break
 				} else {
 					confirm++
@@ -251,8 +250,8 @@ exit:
 			}
 			time.Sleep(r.cfg.ReadConfirmWait)
 		}
-		if errMsg != "" {
-			err = &Error{Op: "read", Err: fmt.Errorf(errMsg)}
+		if errBuf.Len() > 0 {
+			err = &Error{Op: "read", Err: fmt.Errorf(errBuf.String())}
 		}
 	}
 
