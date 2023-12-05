@@ -87,7 +87,7 @@ func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 		if v, _ := e.(*net.OpError); v != nil {
 			return nil, &core.Error{Op: "dial", Addr: addr, Err: e}
 		} else {
-			return nil, &core.Error{Op: "auth", Addr: addr, Err: fmt.Errorf("invalid cred")}
+			return nil, &core.Error{Op: "auth", Addr: addr, Err: e}
 		}
 	}
 
