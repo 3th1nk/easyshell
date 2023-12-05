@@ -10,13 +10,14 @@ import (
 	"github.com/3th1nk/easyshell/pkg/interceptor"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"regexp"
 	"testing"
 	"time"
 )
 
 var (
 	hostCred = &SshCredential{
-		Host:     "192.168.1.65",
+		Host:     "172.16.66.42",
 		Port:     22,
 		User:     "root",
 		Password: "geesunn@123",
@@ -32,6 +33,12 @@ var (
 		Port:     22,
 		User:     "array",
 		Password: "admin",
+	}
+	netCredH3C = &SshCredential{
+		Host:     "192.168.2.3",
+		Port:     22,
+		User:     "admin",
+		Password: "geesunn123",
 	}
 )
 
@@ -338,6 +345,43 @@ func TestSshShell_Sudo(t *testing.T) {
 	assert.True(t, arrUtil.ContainsString(out, "root"))
 }
 
+func TestSshShell_HostScript_Err(t *testing.T) {
+	s, err := NewSshShell(&SshShellConfig{
+		Config: core.Config{
+			ShowPrompt: true,
+		},
+		Credential: hostCred,
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	util.Println("======================================================= first line:")
+	for _, line := range s.HeadLine() {
+		util.PrintTimeLn(line)
+	}
+
+	var out []string
+	for _, cmd := range []string{
+		"bash /root/linux_add.sh",
+	} {
+		util.Println("======================================================= %v", cmd)
+		assert.NoError(t, s.Write(cmd))
+		err = s.ReadToEndLine(time.Minute, func(lines []string) {
+			out = append(out, lines...)
+			for _, line := range lines {
+				util.PrintTimeLn(line)
+			}
+		})
+		if err == io.EOF {
+			util.PrintTimeLn("-> EOF")
+		} else if err != nil {
+			util.PrintTimeLn("-> error: %v", err)
+		}
+	}
+}
+
 func TestSshShell_NetDevice_Cisco(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredCisco,
@@ -413,5 +457,48 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 		if err != nil {
 			util.PrintTimeLn("-> error: %v", err)
 		}
+	}
+}
+
+func TestSshShell_NetDevice_H3C(t *testing.T) {
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: netCredH3C,
+		Config: core.Config{
+			PromptRegex: []*regexp.Regexp{
+				regexp.MustCompile(`WorkSW03[\s\S]*[$#%>\]:]+\s*$`),
+			},
+			AutoPrompt:      true,
+			ShowPrompt:      false,
+			LazyOutInterval: 500 * time.Millisecond,
+			LazyOutSize:     8192,
+		},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	util.Println("======================================================= first line:")
+	for _, line := range s.HeadLine() {
+		util.PrintTimeLn(line)
+	}
+
+	for _, cmd := range []string{
+		"screen-length disable",
+		"display saved-configuration",
+	} {
+		util.Println("======================================================= %v", cmd)
+		assert.NoError(t, s.Write(cmd))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = s.Read(ctx, true, func(lines []string) {
+			for _, line := range lines {
+				util.PrintTimeLn(line)
+			}
+		})
+		if err != nil {
+			util.PrintTimeLn("-> error: %v", err)
+		}
+		cancel()
 	}
 }
