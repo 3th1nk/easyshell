@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	promptTailChars = `#$>)\]:~%`
+	promptTailChars = `$#%>\]:`
 	promptSuffix    = `[\s\S]*[` + promptTailChars + `]+\s*$`
 )
 
