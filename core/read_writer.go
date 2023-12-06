@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	promptTailChars = `$#%>\]:`
-	promptSuffix    = `[\s\S]*[` + promptTailChars + `]+\s*$`
+	DefaultPromptTailChars = `$#%>\]:`
+	DefaultPromptSuffix    = `[\s\S]*[` + DefaultPromptTailChars + `]\s*$`
 )
 
 var (
@@ -24,7 +24,7 @@ var (
 		interceptor.More(),
 		interceptor.Continue(),
 	}
-	defaultPromptRegex = regexp.MustCompile(`\S+` + promptSuffix)
+	defaultPromptRegex = regexp.MustCompile(`\S+` + DefaultPromptSuffix)
 )
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
@@ -303,7 +303,7 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 	if len(runStr) > 10 {
 		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string(runStr[:10]))
 	}
-	prompt := `(?i)` + hostname + promptSuffix
+	prompt := `(?i)` + hostname + DefaultPromptSuffix
 	return regexp.MustCompile(prompt)
 }
 
@@ -332,7 +332,7 @@ func findHostname(remaining string) string {
 	//		# $ > ) ] : ~ %
 
 	// 移除结束符以及前后空格
-	hostname := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(remaining), promptTailChars))
+	hostname := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(remaining), DefaultPromptTailChars))
 	// 如果包含@，取@后面的内容作为主机名
 	if idx := strings.IndexByte(hostname, '@'); idx != -1 {
 		hostname = hostname[idx+1:]

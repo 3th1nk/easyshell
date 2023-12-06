@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/3th1nk/easyshell/core"
 	"net"
 	"regexp"
 	"strings"
@@ -18,7 +19,7 @@ import (
 var (
 	DefaultUserRegex   = regexp.MustCompile(`(?i)(login|name):\s*$`)
 	DefaultPassRegex   = regexp.MustCompile(`(?i)password:\s*$`)
-	DefaultPromptRegex = regexp.MustCompile(`.*[#$>)\]:~%]\s*$`)
+	DefaultPromptRegex = regexp.MustCompile(`.*[` + core.DefaultPromptTailChars + `]\s*$`)
 )
 
 type Client struct {

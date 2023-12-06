@@ -1,6 +1,6 @@
 # EasyShell
 * 支持本地执行命令(windows/linux)
-* 支持通过SSH在主机、网络设备上远程执行交互式命令
+* 支持通过SSH/TELNET协议在主机、网络设备上远程执行交互式命令
 * 支持自定义提示符匹配规则，大多数情况下使用默认提示符规则即可，使用默认提示符规则时可开启自动纠正(基于默认规则首次匹配结果，默认关闭)
 * 支持自定义解码器，默认自动识别GB18030编码并转换成UTF8
 * 支持自定义字符过滤器，默认自动处理退格、CRLF自动转换为LF，并剔除CSI控制字符(部分情况未处理，如：ISO 8613-3和ISO 8613-6中24位前景色和背景色设置)
@@ -48,16 +48,15 @@
     }
     defer s.Close()
     
-    for _, line := range s.PopHeadLine() {
+    for _, line := range s.HeadLine() {
         fmt.Println(line)
     }
 	
     // match 'password' prompt and enter the password automatically
     s.Write("su root")
-    pwdInterceptor := interceptor.Password("password:", "123456", true)
     if err := s.ReadToEndLine(time.Minute, func(lines []string) {
         // handle lines
-    }, pwdInterceptor); err != nil {
+    }, interceptor.Password("password:", "123456", true)); err != nil {
         return err
     }
 ```
