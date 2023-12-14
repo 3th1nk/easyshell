@@ -11,43 +11,19 @@ import (
 )
 
 var (
-	supportedKeyExchanges = []string{
-		// default key-exchange algorithms in golang.org/x/crypto@v0.8.0
-		"curve25519-sha256",
-		"curve25519-sha256@libssh.org",
-		"ecdh-sha2-nistp256",
-		"ecdh-sha2-nistp384",
-		"ecdh-sha2-nistp521",
-		"diffie-hellman-group14-sha1",
-		"diffie-hellman-group14-sha256",
-		// support but not default
-		"diffie-hellman-group1-sha1",
-		// forbidden algorithms
-		// 	TODO maybe necessary in some cases
-		"diffie-hellman-group-exchange-sha1",
-		"diffie-hellman-group-exchange-sha256",
-	}
-
-	supportedCiphers = []string{
-		// default ciphers in golang.org/x/crypto@v0.8.0
-		"aes128-ctr", "aes192-ctr", "aes256-ctr",
-		"aes128-gcm@openssh.com", "aes256-gcm@openssh.com",
-		"chacha20-poly1305@openssh.com",
-		// support but might not recommend
-		"arcfour", "arcfour128", "arcfour256",
-		"aes128-cbc", "3des-cbc",
-		// other
-		"aes192-cbc", "aes256-cbc",
-	}
+	insecureSshCiphers      = []string{"arcfour256", "arcfour128", "arcfour", "aes128-cbc", "3des-cbc", "aes192-cbc", "aes256-cbc"}
+	insecureSshKeyExchanges = []string{"diffie-hellman-group1-sha1", "diffie-hellman-group-exchange-sha1", "diffie-hellman-group-exchange-sha256"}
 )
 
 type SshCredential struct {
-	Host       string `json:"host"`                  // IP地址
-	Port       int    `json:"port,omitempty"`        // 端口，默认22
-	User       string `json:"user,omitempty"`        // 用户名
-	Password   string `json:"password,omitempty"`    // 密码。当密钥与密码同时存在时，优先使用密钥。
-	PrivateKey string `json:"private_key,omitempty"` // 密钥。当密钥与密码同时存在时，优先使用密钥。
-	Timeout    int    `json:"timeout,omitempty"`     // 连接超时时间（秒），默认15秒
+	Host               string `json:"host"`                          // IP地址
+	Port               int    `json:"port,omitempty"`                // 端口，默认22
+	User               string `json:"user,omitempty"`                // 用户名
+	Password           string `json:"password,omitempty"`            // 密码。当密钥与密码同时存在时，优先使用密钥。
+	PrivateKey         string `json:"private_key,omitempty"`         // 密钥。当密钥与密码同时存在时，优先使用密钥。
+	Timeout            int    `json:"timeout,omitempty"`             // 连接超时时间（秒），默认15秒
+	InsecureAlgorithms bool   `json:"insecure_algorithms,omitempty"` // 是否允许不安全的算法
+	Fingerprint        string `json:"fingerprint,omitempty"`         // 公钥指纹，用于验证服务器身份
 }
 
 // NewSshClient 创建一个新的 SshClient
@@ -55,13 +31,26 @@ func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 	addr := fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
 	timeout := util.IfInt(cred.Timeout > 0, cred.Timeout, 15)
 
+	cfg := ssh.Config{}
+	cfg.SetDefaults()
+	if cred.InsecureAlgorithms {
+		cfg.Ciphers = append(cfg.Ciphers, insecureSshCiphers...)
+		cfg.KeyExchanges = append(cfg.KeyExchanges, insecureSshKeyExchanges...)
+	}
+
+	hostKeyCallback := ssh.InsecureIgnoreHostKey()
+	if cred.Fingerprint != "" {
+		hostKeyCallback = func(hostname string, remote net.Addr, publicKey ssh.PublicKey) error {
+			if ssh.FingerprintSHA256(publicKey) != cred.Fingerprint {
+				return fmt.Errorf("ssh: host key fingerprint mismatch")
+			}
+			return nil
+		}
+	}
 	sshCfg := &ssh.ClientConfig{
-		Config: ssh.Config{
-			KeyExchanges: supportedKeyExchanges,
-			Ciphers:      supportedCiphers,
-		},
+		Config:          cfg,
 		User:            cred.User,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         time.Second * time.Duration(timeout),
 	}
 	if cred.PrivateKey != "" {
