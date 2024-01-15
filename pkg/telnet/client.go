@@ -17,8 +17,8 @@ import (
 // 	1、提示符后回显提示内容，这个已在鉴权时强制关闭回显
 // 	2、终端不停打印日志内容，导致超时错误(无法正确匹配提示符 或者 无法判定登录成功的状态)，比如登录日志里面包含“LOGIN:”，这种情况必须关闭终端打印
 var (
-	DefaultUserRegex   = regexp.MustCompile(`(?i)(login|name):\s*$`)
-	DefaultPassRegex   = regexp.MustCompile(`(?i)password:\s*$`)
+	DefaultUserRegex   = regexp.MustCompile(`(?i).*(login|user(name)?):\s*$`)
+	DefaultPassRegex   = regexp.MustCompile(`(?i).*pass(word)?:\s*$`)
 	DefaultPromptRegex = regexp.MustCompile(`.*[` + core.DefaultPromptTailChars + `]\s*$`)
 )
 
