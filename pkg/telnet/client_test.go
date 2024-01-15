@@ -38,4 +38,8 @@ func TestClient_Read(t *testing.T) {
 	data, _, err := client.ReadUtil2(cmd)
 	assert.NoError(t, err)
 	t.Log(data.String())
+
+	data, _, err = client.doReadUtilPrompt()
+	assert.NoError(t, err)
+	t.Log(data.String())
 }
