@@ -23,10 +23,11 @@ var (
 		Password: "<password>",
 	}
 	netCredCisco = &SshCredential{
-		Host:     "192.0.2.12",
-		Port:     22,
-		User:     "admin",
-		Password: "<password>",
+		Host:               "192.0.2.12",
+		Port:               22,
+		User:               "admin",
+		Password:           "<password>",
+		InsecureAlgorithms: true,
 	}
 	netCredArray = &SshCredential{
 		Host:     "192.0.2.15",
