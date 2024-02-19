@@ -21,7 +21,7 @@ func CrlfFilter(s []byte) []byte {
 		// 清除\r及其左侧的当前行内容
 		if index := bytes.LastIndexByte(s[:pos], '\n'); index >= 0 {
 			length -= dropBytes(s, index+1, pos+1)
-			pos = index + 2
+			pos = index + 1
 		} else {
 			s = s[pos+1:]
 			length -= pos + 1
