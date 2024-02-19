@@ -30,16 +30,18 @@ var (
 		InsecureAlgorithms: true,
 	}
 	netCredArray = &SshCredential{
-		Host:     "192.168.1.16",
-		Port:     22,
-		User:     "array",
-		Password: "admin",
+		Host:               "192.168.1.16",
+		Port:               22,
+		User:               "array",
+		Password:           "admin",
+		InsecureAlgorithms: true,
 	}
 	netCredH3C = &SshCredential{
-		Host:     "192.168.2.3",
-		Port:     22,
-		User:     "admin",
-		Password: "geesunn123",
+		Host:               "192.168.2.3",
+		Port:               22,
+		User:               "admin",
+		Password:           "geesunn123",
+		InsecureAlgorithms: true,
 	}
 )
 
