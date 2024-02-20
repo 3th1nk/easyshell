@@ -1,6 +1,8 @@
 package filter
 
-import "bytes"
+import (
+	"bytes"
+)
 
 // CrlfFilter 处理回车换行
 func CrlfFilter(s []byte) []byte {
