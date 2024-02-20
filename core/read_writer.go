@@ -171,7 +171,9 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 					}
 					for _, f := range interceptors {
 						if match, showOut, input := f(outBuf.String()); match {
+							//util.PrintTimeLn("interceptor match: %x", remaining)
 							outBuf.Reset()
+							// TODO 如果是匹配多行内容的拦截器，前面行的内容总是被返回了，后续优化
 							if showOut && remaining != "" && onOut != nil {
 								onOut([]string{remaining})
 							}
@@ -185,6 +187,7 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 				if remaining != "" {
 					for _, f := range defaultInterceptors {
 						if match, showOut, input := f(remaining); match {
+							//util.PrintTimeLn("default interceptor match: %x", remaining)
 							outBuf.Reset()
 							if showOut && onOut != nil {
 								onOut([]string{remaining})
@@ -281,6 +284,7 @@ func (r *ReadWriter) IsEndLine(s string) bool {
 }
 
 // findPromptRegex
+//
 //	！！！由于提示符的格式非常自由，自动识别有可能错误，应视情况使用 ！！！
 func findPromptRegex(remaining string) *regexp.Regexp {
 	// 由于提示符在交互过程中可能会变化，这里先提取一下主机名，再通配一下尾部
