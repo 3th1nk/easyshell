@@ -39,6 +39,12 @@ func WithFilter(filter func(b []byte) []byte) Option {
 	}
 }
 
+func WithRawOut(w io.Writer) Option {
+	return func(reader *LineReader) {
+		reader.rawOut = w
+	}
+}
+
 type LineReader struct {
 	r               io.Reader                      //
 	decoder         func(b []byte) ([]byte, error) // 二进制解码函数
@@ -48,6 +54,7 @@ type LineReader struct {
 	remainingOffset int                            // 缓冲区中最后一个换行符后面的部分的长度（在缓冲区中的原始长度）
 	mu              sync.Mutex                     //
 	err             error                          //
+	rawOut          io.Writer                      // 原始数据输出
 }
 
 func (lr *LineReader) read() {
@@ -60,6 +67,9 @@ func (lr *LineReader) read() {
 			return
 		}
 		size := offset + n
+		if lr.rawOut != nil {
+			_, _ = lr.rawOut.Write(buf[offset:size])
+		}
 
 		lr.mu.Lock()
 

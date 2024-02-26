@@ -37,6 +37,9 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	}
 
 	var opts []lineReader.Option
+	if cfg.RawOut != nil {
+		opts = append(opts, lineReader.WithRawOut(cfg.RawOut))
+	}
 	if cfg.Filter != nil {
 		opts = append(opts, lineReader.WithFilter(cfg.Filter))
 	}
