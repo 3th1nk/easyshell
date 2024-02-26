@@ -1,11 +1,15 @@
 package core
 
 import (
+	"io"
 	"regexp"
 	"time"
 )
 
 type Config struct {
+	// 输出 io.Reader 中读取的原始数据，用于上层调试
+	RawOut io.Writer
+
 	// 从 io.Reader 中读取到数据后，用来过滤特殊字符的自定义函数，在 Decoder 前执行
 	Filter func(b []byte) []byte
 
