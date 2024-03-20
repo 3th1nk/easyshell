@@ -8,6 +8,7 @@ import (
 	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/interceptor"
+	"github.com/3th1nk/easyshell/pkg/replay"
 	"github.com/stretchr/testify/assert"
 	"io"
 	"regexp"
@@ -464,6 +465,9 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 }
 
 func TestSshShell_NetDevice_H3C(t *testing.T) {
+	ro := replay.NewWriter("./pkg/replay/testdata/WorkSW03_ssh.data")
+	defer ro.Close()
+
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredH3C,
 		Config: core.Config{
@@ -474,6 +478,7 @@ func TestSshShell_NetDevice_H3C(t *testing.T) {
 			ShowPrompt:      false,
 			LazyOutInterval: 500 * time.Millisecond,
 			LazyOutSize:     8192,
+			RawOut:          ro,
 		},
 	})
 	if !assert.NoError(t, err) {
@@ -487,8 +492,8 @@ func TestSshShell_NetDevice_H3C(t *testing.T) {
 	}
 
 	for _, cmd := range []string{
-		"screen-length disable",
 		"display saved-configuration",
+		"display current-configuration",
 	} {
 		util.Println("======================================================= %v", cmd)
 		assert.NoError(t, s.Write(cmd))

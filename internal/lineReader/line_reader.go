@@ -59,7 +59,9 @@ type LineReader struct {
 
 func (lr *LineReader) read() {
 	// 缓冲区、缓冲区写入位置
-	buf, offset := make([]byte, 1024), 0
+	// ！！！Read()最多读取一个缓冲区大小的内容，有可能读取不完整，导致字符过滤时可能出现问题
+	//	这里基于经验设置大小为4096，只是尽量降低发生概率，无法完全避免
+	buf, offset := make([]byte, 4096), 0
 	for {
 		n, err := lr.r.Read(buf[offset:])
 		if err != nil {
