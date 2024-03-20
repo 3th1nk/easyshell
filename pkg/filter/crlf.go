@@ -5,7 +5,14 @@ import (
 )
 
 // CrlfFilter 处理回车换行
+// 	为了避免未读取完整但最后一个字符是 \r 导致最后一行内容被清除的情况，这里只处理最后一个\n之前的内容
 func CrlfFilter(s []byte) []byte {
+	var remaining []byte
+	if idx := bytes.LastIndexByte(s, '\n'); idx >= 0 {
+		s, remaining = s[:idx+1], s[idx+1:]
+	} else {
+		return s
+	}
 	length := len(s)
 	for pos := 0; pos < length; {
 		if s[pos] != '\r' {
@@ -47,5 +54,5 @@ func CrlfFilter(s []byte) []byte {
 			pos = 0
 		}
 	}
-	return s[:length]
+	return append(s[:length], remaining...)
 }
