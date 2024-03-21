@@ -3,6 +3,7 @@ package lineReader
 import (
 	"bytes"
 	"github.com/3th1nk/easygo/charset"
+	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/pkg/filter"
 	"io"
 	"strings"
@@ -70,7 +71,9 @@ func (lr *LineReader) read() {
 		}
 		size := offset + n
 		if lr.rawOut != nil {
-			_, _ = lr.rawOut.Write(buf[offset:size])
+			if _, err = lr.rawOut.Write(buf[offset:size]); err != nil {
+				util.PrintErrln("write raw out failed: %s", err)
+			}
 		}
 
 		lr.mu.Lock()
