@@ -466,7 +466,11 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 
 func TestSshShell_NetDevice_H3C(t *testing.T) {
 	ro := replay.NewWriter("./pkg/replay/testdata/WorkSW03_ssh.data")
-	defer ro.Close()
+	defer func() {
+		if ro != nil {
+			_ = ro.Close()
+		}
+	}()
 
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredH3C,
