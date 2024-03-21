@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/3th1nk/easygo/charset"
 	"github.com/3th1nk/easygo/util"
+	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/filter"
 	"io"
 	"strings"
@@ -11,7 +12,7 @@ import (
 )
 
 func New(r io.Reader, opts ...Option) *LineReader {
-	if r == nil || r.(io.Reader) == nil {
+	if misc.IsNil(r) {
 		return nil
 	}
 
@@ -71,7 +72,7 @@ func (lr *LineReader) read() {
 			return
 		}
 		size := offset + n
-		if lr.rawOut != nil {
+		if !misc.IsNil(lr.rawOut) {
 			if _, err = lr.rawOut.Write(buf[offset:size]); err != nil {
 				util.PrintErrln("write raw out failed: %s", err)
 			}
