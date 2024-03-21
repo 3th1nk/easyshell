@@ -29,7 +29,7 @@ var (
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	if cfg.ReadConfirmWait <= 0 {
-		cfg.ReadConfirmWait = 20 * time.Millisecond
+		cfg.ReadConfirmWait = 50 * time.Millisecond
 	}
 
 	if cfg.ReadConfirm <= 0 {

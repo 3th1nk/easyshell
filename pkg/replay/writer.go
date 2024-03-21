@@ -1,6 +1,7 @@
 package replay
 
 import (
+	"github.com/3th1nk/easygo/util"
 	"os"
 )
 
@@ -12,6 +13,7 @@ type Writer struct {
 func NewWriter(path string) *Writer {
 	data, err := os.Create(path)
 	if err != nil {
+		util.PrintErrln("create data file failed: %s", err)
 		return nil
 	}
 
@@ -32,6 +34,9 @@ func (w *Writer) Close() error {
 }
 
 func (w *Writer) Write(p []byte) (n int, err error) {
+	if w.data == nil {
+		return 0, nil
+	}
 	n, err = w.data.Write(p)
 	if err != nil {
 		return
