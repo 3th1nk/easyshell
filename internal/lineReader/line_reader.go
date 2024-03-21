@@ -11,19 +11,20 @@ import (
 )
 
 func New(r io.Reader, opts ...Option) *LineReader {
-	if r != nil {
-		obj := &LineReader{
-			r:      r,
-			filter: filter.DefaultFilter,
-			lines:  make([]string, 0, 4),
-		}
-		for _, opt := range opts {
-			opt(obj)
-		}
-		go obj.read()
-		return obj
+	if r == nil || r.(io.Reader) == nil {
+		return nil
 	}
-	return nil
+
+	obj := &LineReader{
+		r:      r,
+		filter: filter.DefaultFilter,
+		lines:  make([]string, 0, 4),
+	}
+	for _, opt := range opts {
+		opt(obj)
+	}
+	go obj.read()
+	return obj
 }
 
 type Option func(*LineReader)

@@ -28,16 +28,22 @@ var (
 )
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
+	if in == nil || in.(io.Writer) == nil {
+		panic("in is nil")
+	}
+	if out == nil || out.(io.Reader) == nil {
+		panic("out is nil")
+	}
+
 	if cfg.ReadConfirmWait <= 0 {
 		cfg.ReadConfirmWait = 50 * time.Millisecond
 	}
-
 	if cfg.ReadConfirm <= 0 {
 		cfg.ReadConfirm = 3
 	}
 
 	var opts []lineReader.Option
-	if cfg.RawOut != nil {
+	if cfg.RawOut != nil && cfg.RawOut.(io.Writer) != nil {
 		opts = append(opts, lineReader.WithRawOut(cfg.RawOut))
 	}
 	if cfg.Filter != nil {
