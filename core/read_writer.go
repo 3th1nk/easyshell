@@ -7,6 +7,7 @@ import (
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/internal/lazyOut"
 	"github.com/3th1nk/easyshell/internal/lineReader"
+	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/interceptor"
 	"io"
 	"regexp"
@@ -28,10 +29,10 @@ var (
 )
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
-	if in == nil || in.(io.Writer) == nil {
+	if misc.IsNil(in) {
 		panic("in is nil")
 	}
-	if out == nil || out.(io.Reader) == nil {
+	if misc.IsNil(out) {
 		panic("out is nil")
 	}
 
@@ -43,7 +44,7 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	}
 
 	var opts []lineReader.Option
-	if cfg.RawOut != nil && cfg.RawOut.(io.Writer) != nil {
+	if !misc.IsNil(cfg.RawOut) {
 		opts = append(opts, lineReader.WithRawOut(cfg.RawOut))
 	}
 	if cfg.Filter != nil {
