@@ -501,7 +501,7 @@ func (this *Client) doAuth() error {
 		if firstRead {
 			firstRead = false
 			this.welcomeStr = strings.TrimSpace(data.String())
-			strings.Replace(this.welcomeStr, "\r\n", "\n", -1)
+			this.welcomeStr = strings.Replace(this.welcomeStr, "\r\n", "\n", -1)
 		}
 
 		// 如果没有指定用户名和密码，则直接返回；如果需要认证，则后续读写时会返回错误
@@ -543,7 +543,7 @@ func (this *Client) doAuth() error {
 		// 已输入过用户名或密码，且没有再次匹配到用户名或密码提示符，说明登录成功
 		if enterUser || enterPass {
 			this.promptStr = strings.TrimSpace(prompt.String())
-			strings.Replace(this.promptStr, "\r\n", "\n", -1)
+			this.promptStr = strings.Replace(this.promptStr, "\r\n", "\n", -1)
 			break
 		}
 	}
