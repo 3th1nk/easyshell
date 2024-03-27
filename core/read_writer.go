@@ -311,14 +311,36 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 		return nil
 	}
 
-	// 存在提示符被省略的情况，虽然findHostname处理过山石防火墙的情况，但是还是有可能出现其他情况，这里再通配一下
-	//	山石防火墙：S-ABC-D1-EFG-~(M)#
+	// 存在提示符被省略、子命令模式等情况，这里取前10个字符作为前缀匹配
+	//	山石防火墙提示符超长被省略：S-ABC-D1-EFG-~(M)#
+	var prefix string
 	runStr := []rune(hostname)
 	if len(runStr) > 10 {
-		hostname = fmt.Sprintf(`(%v|%v\S+)`, hostname, string(runStr[:10]))
+		prefix = string(runStr[:10])
 	}
-	prompt := `(?i)` + hostname + DefaultPromptSuffix
-	return regexp.MustCompile(prompt)
+
+	var pattern string
+	if prefix != "" {
+		pattern = fmt.Sprintf(`(?i)(%v|%v\S+)%v`, hostname, prefix, DefaultPromptSuffix)
+	} else {
+		pattern = fmt.Sprintf(`(?i)%v%v`, hostname, DefaultPromptSuffix)
+	}
+	if re, err := regexp.Compile(pattern); err == nil {
+		return re
+	}
+
+	// 主机名中可能包含特殊字符，如果正则编译失败，尝试转义后再次编译
+	if prefix != "" {
+		pattern = fmt.Sprintf(`(?i)(%v|%v\S+)%v`, regexp.QuoteMeta(hostname), regexp.QuoteMeta(prefix), DefaultPromptSuffix)
+	} else {
+		pattern = fmt.Sprintf(`(?i)%v%v`, regexp.QuoteMeta(hostname), DefaultPromptSuffix)
+	}
+	if re, err := regexp.Compile(pattern); err == nil {
+		return re
+	}
+
+	util.Println("findPromptRegex fail, remaining:", remaining)
+	return nil
 }
 
 func findHostname(remaining string) string {

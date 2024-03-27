@@ -6,6 +6,10 @@ import (
 
 type Interceptor func(str string) (match bool, showOut bool, input string)
 
+func invalidInterceptor(str string) (bool, bool, string) {
+	return false, false, ""
+}
+
 func Regexp(regex *regexp.Regexp, input string, format func(string) string, showOut ...bool) Interceptor {
 	return func(str string) (bool, bool, string) {
 		if format != nil {
@@ -25,10 +29,20 @@ func LastLineRegex(regex *regexp.Regexp, input string, showOut ...bool) Intercep
 	return Regexp(regex, input, LastLine, showOut...)
 }
 
+// Pattern 需要调用方保证 pattern 是合法的正则表达式
 func Pattern(pattern string, input string, format func(string) string, showOut ...bool) Interceptor {
-	return Regexp(regexp.MustCompile(pattern), input, format, showOut...)
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return invalidInterceptor
+	}
+	return Regexp(re, input, format, showOut...)
 }
 
+// LastLinePattern 需要调用方保证 pattern 是合法的正则表达式
 func LastLinePattern(pattern string, input string, showOut ...bool) Interceptor {
-	return Regexp(regexp.MustCompile(pattern), input, LastLine, showOut...)
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return invalidInterceptor
+	}
+	return Regexp(re, input, LastLine, showOut...)
 }
