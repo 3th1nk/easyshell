@@ -32,36 +32,39 @@ func (c *CmdShellConfig) EnsureInit() {
 	}
 }
 
-func NewCmdShell(cmdAndArgs string, config *CmdShellConfig) *CmdShell {
-	if config == nil {
-		config = &CmdShellConfig{}
+func NewCmdShell(cmdAndArgs string, config ...*CmdShellConfig) *CmdShell {
+	var cfg *CmdShellConfig
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
+	} else {
+		cfg = &CmdShellConfig{}
 	}
-	config.EnsureInit()
+	cfg.EnsureInit()
 
 	arr := splitCmd(cmdAndArgs)
 	var cmd *exec.Cmd
-	if config.Context == nil {
+	if cfg.Context == nil {
 		cmd = exec.Command(arr[0], arr[1:]...)
 	} else {
-		cmd = exec.CommandContext(config.Context, arr[0], arr[1:]...)
+		cmd = exec.CommandContext(cfg.Context, arr[0], arr[1:]...)
 	}
 
-	if config.Prepare != nil {
-		config.Prepare(cmd)
+	if cfg.Prepare != nil {
+		cfg.Prepare(cmd)
 	}
 
 	in, _ := cmd.StdinPipe()
 	out, _ := cmd.StdoutPipe()
 	err, _ := cmd.StderrPipe()
-	if f := config.BeforeRead; f != nil {
-		config.BeforeRead = func() error {
+	if f := cfg.BeforeRead; f != nil {
+		cfg.BeforeRead = func() error {
 			if cmd.Process == nil {
 				return cmd.Start()
 			}
 			return f()
 		}
 	} else {
-		config.BeforeRead = func() error {
+		cfg.BeforeRead = func() error {
 			if cmd.Process == nil {
 				return cmd.Start()
 			}
@@ -69,9 +72,10 @@ func NewCmdShell(cmdAndArgs string, config *CmdShellConfig) *CmdShell {
 		}
 	}
 
-	r := core.New(in, out, err, config.Config)
-
-	return &CmdShell{ReadWriter: r, c: cmd}
+	return &CmdShell{
+		ReadWriter: core.New(in, out, err, cfg.Config),
+		c:          cmd,
+	}
 }
 
 type CmdShell struct {

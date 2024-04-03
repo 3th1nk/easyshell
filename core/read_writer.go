@@ -37,7 +37,7 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	}
 
 	if cfg.ReadConfirmWait <= 0 {
-		cfg.ReadConfirmWait = 50 * time.Millisecond
+		cfg.ReadConfirmWait = 100 * time.Millisecond
 	}
 	if cfg.ReadConfirm <= 0 {
 		cfg.ReadConfirm = 3
@@ -47,7 +47,7 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	if !misc.IsNil(cfg.RawOut) {
 		opts = append(opts, lineReader.WithRawOut(cfg.RawOut))
 	}
-	if cfg.Filter != nil {
+	if !misc.IsNil(cfg.Filter) {
 		opts = append(opts, lineReader.WithFilter(cfg.Filter))
 	}
 	if cfg.Decoder != nil {

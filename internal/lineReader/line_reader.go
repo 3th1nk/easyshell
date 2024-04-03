@@ -18,7 +18,7 @@ func New(r io.Reader, opts ...Option) *LineReader {
 
 	obj := &LineReader{
 		r:      r,
-		filter: filter.DefaultFilter,
+		filter: filter.NewDefaultFilter(),
 		lines:  make([]string, 0, 4),
 	}
 	for _, opt := range opts {
@@ -36,7 +36,7 @@ func WithDecoder(decoder func(b []byte) ([]byte, error)) Option {
 	}
 }
 
-func WithFilter(filter func(b []byte) []byte) Option {
+func WithFilter(filter filter.IFilter) Option {
 	return func(reader *LineReader) {
 		reader.filter = filter
 	}
@@ -50,14 +50,14 @@ func WithRawOut(w io.Writer) Option {
 
 type LineReader struct {
 	r               io.Reader                      //
+	rawOut          io.Writer                      // 原始数据输出
+	filter          filter.IFilter                 // 字符过滤器
 	decoder         func(b []byte) ([]byte, error) // 二进制解码函数
-	filter          func(b []byte) []byte          // 字符过滤器
 	lines           []string                       // 缓冲区中已经读取到的行
 	remaining       string                         // 缓冲区中最后一个换行符后面的部分
 	remainingOffset int                            // 缓冲区中最后一个换行符后面的部分的长度（在缓冲区中的原始长度）
 	mu              sync.Mutex                     //
 	err             error                          //
-	rawOut          io.Writer                      // 原始数据输出
 }
 
 func (lr *LineReader) read() {
@@ -72,10 +72,8 @@ func (lr *LineReader) read() {
 			return
 		}
 		size := offset + n
-		if !misc.IsNil(lr.rawOut) {
-			if _, err = lr.rawOut.Write(buf[offset:size]); err != nil {
-				util.PrintErrln("write raw out failed: %s", err)
-			}
+		if err = lr.doRawOut(buf[offset:size]); err != nil {
+			util.PrintErrln("write raw out failed: %s", err)
 		}
 
 		lr.mu.Lock()
@@ -121,9 +119,18 @@ func (lr *LineReader) read() {
 	}
 }
 
+func (lr *LineReader) doRawOut(s []byte) error {
+	if !misc.IsNil(lr.rawOut) {
+		if _, err := lr.rawOut.Write(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (lr *LineReader) doFilter(s []byte) []byte {
-	if lr.filter != nil {
-		return lr.filter(s)
+	if !misc.IsNil(lr.filter) {
+		return lr.filter.Do(s)
 	}
 	return s
 }

@@ -6,11 +6,12 @@
 * 支持自定义字符过滤器，默认自动处理退格、CRLF自动转换为LF，并剔除CSI控制字符(部分情况未处理，如：ISO 8613-3和ISO 8613-6中24位前景色和背景色设置)
 * 支持自定义内容拦截器，内置拦截器包括密码交互(Password)、问答交互(Yes/No)、网络设备自动翻页(More)、网络设备继续执行(Continue)
 * 支持延迟返回输出内容，可指定超过一定时间 或 内容大小 后返回
+* 支持记录原始输出内容和回放，用于调试
 
 ## 代码片段
 - 本地执行命令
 ```
-    s := NewCmdShell("ping www.baidu.com", nil)
+    s := NewCmdShell("ping www.baidu.com")
     if err := s.ReadAll(time.Minute, func(lines []string) {
         // handle lines
     }); err != nil {
@@ -19,7 +20,7 @@
     
     ...
     
-    s2 := NewCmdShell("cmd /K", nil)
+    s2 := NewCmdShell("cmd /K")
     for _, cmd := range []string{"c:", "dir"} {
         s2.Write(cmd)
         if err := s2.ReadToEndLine(time.Minute, func(lines []string) {
@@ -38,6 +39,7 @@
         User:       "zhangsan",
         Password:   "123456",
         PrivateKey: "",
+        InsecureAlgorithms: true,
         Timeout:    5,
     }
     s, err := NewSshShell(&SshShellConfig{
