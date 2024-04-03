@@ -465,7 +465,7 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 }
 
 func TestSshShell_NetDevice_H3C(t *testing.T) {
-	ro := replay.NewWriter("./pkg/replay/testdata/WorkSW03_ssh.data")
+	ro := replay.NewWriter("./pkg/replay/testdata/WorkSW03_ssh.txt")
 	defer func() {
 		if ro != nil {
 			_ = ro.Close()

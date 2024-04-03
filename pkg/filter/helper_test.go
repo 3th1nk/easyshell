@@ -21,6 +21,6 @@ func Test_dropMultiBytes(t *testing.T) {
 		{7, 8}, // 0x37
 	}
 	expect := []byte{0x31, 0x32, 0x33, 0x36, 0x38, 0x39}
-	actual := dropMultiBytes(src, dropArr)
-	assert.Equal(t, expect, actual)
+	dst := dropMultiBytes(src, dropArr)
+	assert.Equal(t, expect, dst)
 }

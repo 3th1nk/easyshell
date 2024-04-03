@@ -3,6 +3,7 @@ package replay
 import (
 	"github.com/3th1nk/easygo/util"
 	"os"
+	"path/filepath"
 )
 
 type Writer struct {
@@ -11,6 +12,11 @@ type Writer struct {
 }
 
 func NewWriter(path string) *Writer {
+	// 目录不存在则创建
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		util.PrintErrln("create data dir failed: %s", err)
+		return nil
+	}
 	data, err := os.Create(path)
 	if err != nil {
 		util.PrintErrln("create data file failed: %s", err)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewReplay(t *testing.T) {
-	player := NewReplay("./testdata/WorkSW03_ssh.data", &Config{
+	player := NewReplay("./testdata/WorkSW03_ssh.txt", &Config{
 		Config: core.Config{
 			PromptRegex: []*regexp.Regexp{
 				regexp.MustCompile(`WorkSW03[\s\S]*[$#%>\]:]+\s*$`),

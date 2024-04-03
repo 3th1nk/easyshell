@@ -4,9 +4,17 @@ import (
 	"bytes"
 )
 
-// CrlfFilter 处理回车换行
-// 	为了避免未读取完整但最后一个字符是 \r 导致最后一行内容被清除的情况，这里只处理最后一个\n之前的内容
-func CrlfFilter(s []byte) []byte {
+const (
+	CrTrimModeNone        = iota // 遇到单个 \r 时，不做处理
+	CrTrimModeOnlyCr             // 遇到单个 \r 时，只清除 \r
+	CrTrimModeBeginOfLine        // 遇到单个 \r 时，清除 \r 及其左侧的内容，直到行首
+)
+
+// crlfFilter 处理回车换行
+//
+//	s 要处理的字符, 会被修改
+//	为了避免未读取完整但最后一个字符是 \r 导致最后一行内容被清除的情况，这里只处理最后一个\n之前的内容
+func crlfFilter(s []byte, crTrimMode int) []byte {
 	var remaining []byte
 	if idx := bytes.LastIndexByte(s, '\n'); idx >= 0 {
 		s, remaining = s[:idx+1], s[idx+1:]
@@ -44,14 +52,28 @@ func CrlfFilter(s []byte) []byte {
 			}
 		}
 
-		// 清除\r及其左侧的当前行内容
-		if index := bytes.LastIndexByte(s[:pos], '\n'); index >= 0 {
-			length -= dropBytes(s, index+1, pos+1)
-			pos = index + 1
+		// 处理单独的\r
+		if crTrimMode == CrTrimModeNone {
+			pos++
+			continue
+		}
+		if pos > 0 {
+			if crTrimMode == CrTrimModeBeginOfLine {
+				if index := bytes.LastIndexByte(s[:pos], '\n'); index >= 0 {
+					length -= dropBytes(s, index+1, pos+1)
+					pos = index + 1
+				} else {
+					s = s[pos+1:]
+					length -= pos + 1
+					pos = 0
+				}
+			} else {
+				s = append(s[:pos], s[pos+1:]...)
+				length -= 1
+			}
 		} else {
-			s = s[pos+1:]
-			length -= pos + 1
-			pos = 0
+			s = s[1:]
+			length -= 1
 		}
 	}
 	return append(s[:length], remaining...)

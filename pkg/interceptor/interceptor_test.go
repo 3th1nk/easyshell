@@ -9,7 +9,7 @@ import (
 func TestPattern(t *testing.T) {
 	pattern := "\\[Y/N\\]:"
 	i := Pattern(pattern, "y", strings.TrimSpace, false)
-	matched, show, input := i("want to continue [Y/N]:")
+	matched, show, input := i("are you ok [Y/N]:")
 	assert.Equal(t, true, matched)
 	assert.Equal(t, "y", input)
 	assert.Equal(t, false, show)

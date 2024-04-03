@@ -10,7 +10,7 @@ import (
 )
 
 func TestCmdShell_1(t *testing.T) {
-	s := NewCmdShell("ping www.baidu.com", nil)
+	s := NewCmdShell("ping www.baidu.com")
 
 	start := time.Now()
 	var out []string
@@ -33,7 +33,7 @@ func TestCmdShell_1(t *testing.T) {
 }
 
 func TestCmdShell_2(t *testing.T) {
-	s := NewCmdShell("cmd /K", nil)
+	s := NewCmdShell("cmd /K")
 
 	start := time.Now()
 	var out []string

@@ -14,20 +14,24 @@ type TelnetShellConfig struct {
 }
 
 func (c *TelnetShellConfig) EnsureInit() {
+	// now noting to do
 }
 
-func NewTelnetShell(config *TelnetShellConfig) (*TelnetShell, error) {
-	if config == nil {
-		config = &TelnetShellConfig{}
+func NewTelnetShell(config ...*TelnetShellConfig) (*TelnetShell, error) {
+	var cfg *TelnetShellConfig
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
+	} else {
+		cfg = &TelnetShellConfig{}
 	}
-	config.EnsureInit()
+	cfg.EnsureInit()
 
-	client, e := NewTelnetClient(config.Credential)
+	client, e := NewTelnetClient(cfg.Credential)
 	if e != nil {
 		return nil, e
 	}
 
-	shell, err := NewTelnetShellFromClient(client, config)
+	shell, err := NewTelnetShellFromClient(client, cfg)
 	if err != nil {
 		_ = client.Close()
 		return nil, err
@@ -37,13 +41,16 @@ func NewTelnetShell(config *TelnetShellConfig) (*TelnetShell, error) {
 	return shell, nil
 }
 
-func NewTelnetShellFromClient(client *telnet.Client, config *TelnetShellConfig) (*TelnetShell, error) {
-	if config == nil {
-		config = &TelnetShellConfig{}
+func NewTelnetShellFromClient(client *telnet.Client, config ...*TelnetShellConfig) (*TelnetShell, error) {
+	var cfg *TelnetShellConfig
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
+	} else {
+		cfg = &TelnetShellConfig{}
 	}
-	config.EnsureInit()
+	cfg.EnsureInit()
 
-	r := core.New(client, client, nil, config.Config)
+	r := core.New(client, client, nil, cfg.Config)
 	// 读取提示符
 	_ = r.Write("")
 	_ = r.ReadToEndLine(3*time.Second, func(lines []string) {})

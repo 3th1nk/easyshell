@@ -30,18 +30,21 @@ func (c *SshShellConfig) EnsureInit() {
 	}
 }
 
-func NewSshShell(config *SshShellConfig) (*SshShell, error) {
-	if config == nil {
-		config = &SshShellConfig{}
+func NewSshShell(config ...*SshShellConfig) (*SshShell, error) {
+	var cfg *SshShellConfig
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
+	} else {
+		cfg = &SshShellConfig{}
 	}
-	config.EnsureInit()
+	cfg.EnsureInit()
 
-	client, e := NewSshClient(config.Credential)
+	client, e := NewSshClient(cfg.Credential)
 	if e != nil {
 		return nil, e
 	}
 
-	shell, err := NewSshShellFromClient(client, config)
+	shell, err := NewSshShellFromClient(client, cfg)
 	if err != nil {
 		_ = client.Close()
 		return nil, err
@@ -52,11 +55,14 @@ func NewSshShell(config *SshShellConfig) (*SshShell, error) {
 	return shell, nil
 }
 
-func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShell, error) {
-	if config == nil {
-		config = &SshShellConfig{}
+func NewSshShellFromClient(client *ssh.Client, config ...*SshShellConfig) (*SshShell, error) {
+	var cfg *SshShellConfig
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
+	} else {
+		cfg = &SshShellConfig{}
 	}
-	config.EnsureInit()
+	cfg.EnsureInit()
 
 	addr := client.RemoteAddr().String()
 	session, err := client.NewSession()
@@ -64,8 +70,8 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 		return nil, &core.Error{Op: "session", Addr: addr, Err: err}
 	}
 
-	echo := util.IfInt(config.Echo, 1, 0)
-	if err = session.RequestPty(config.Term, config.TermHeight, config.TermWidth, ssh.TerminalModes{
+	echo := util.IfInt(cfg.Echo, 1, 0)
+	if err = session.RequestPty(cfg.Term, cfg.TermHeight, cfg.TermWidth, ssh.TerminalModes{
 		ssh.ECHO:          uint32(echo),
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
@@ -82,7 +88,7 @@ func NewSshShellFromClient(client *ssh.Client, config *SshShellConfig) (*SshShel
 		_ = session.Close()
 		return nil, &core.Error{Op: "shell", Addr: addr, Err: err}
 	}
-	r := core.New(pIn, pOut, pErr, config.Config)
+	r := core.New(pIn, pOut, pErr, cfg.Config)
 
 	var headLine []string
 	_ = r.ReadToEndLine(3*time.Second, func(lines []string) {

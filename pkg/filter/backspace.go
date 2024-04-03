@@ -4,7 +4,10 @@ import (
 	"bytes"
 )
 
-func BackspaceFilter(s []byte) []byte {
+// backspaceFilter 处理退格
+//
+//	s 要处理的字符, 会被修改
+func backspaceFilter(s []byte) []byte {
 	var pos, bsCnt int
 	length := len(s)
 	for ; pos < length; pos++ {
