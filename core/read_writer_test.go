@@ -32,6 +32,7 @@ func TestDefaultPromptRegex(t *testing.T) {
 		{"#", false},
 		{"$", false},
 		{" # ", false},
+		{"[mon@m41205302.cloud.208.am49 /home/mon]", true},
 	} {
 		assert.Equal(t, obj.Matched, defaultPromptRegex.MatchString(obj.Prompt))
 	}
@@ -44,12 +45,13 @@ func TestFindHostname(t *testing.T) {
 	}{
 		{"root@HA-备 #", "HA-备"},
 		{"[root@localhost ~]#", "localhost"},
-		{"[localhost.localdomain ~]$", "localhost"},
+		{"[root@localhost.localdomain ~]$", "localhost.localdomain"},
 		{"hostname#", "hostname"},
 		{"<HUAWEI>hrp enable", "HUAWEI"},
 		{"中文主机名 #", "中文主机名"},
 		{"HRP_M[HUAWEI] diagnose", "HUAWEI"},
 		{"S-ABC-D1-EFG-~(M)# ", "S-ABC-D1-EFG-"},
+		{"[mon@m41205302.cloud.208.am49 /home/mon]", "m41205302.cloud.208.am49"},
 	} {
 		assert.Equal(t, obj.Hostname, findHostname(obj.Remaining))
 	}

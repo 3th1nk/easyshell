@@ -321,7 +321,7 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 
 	var pattern string
 	if prefix != "" {
-		pattern = fmt.Sprintf(`(?i)(%v|%v\S+)%v`, hostname, prefix, DefaultPromptSuffix)
+		pattern = fmt.Sprintf(`(?i)(%v|%v)%v`, hostname, prefix, DefaultPromptSuffix)
 	} else {
 		pattern = fmt.Sprintf(`(?i)%v%v`, hostname, DefaultPromptSuffix)
 	}
@@ -331,7 +331,7 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 
 	// 主机名中可能包含特殊字符，如果正则编译失败，尝试转义后再次编译
 	if prefix != "" {
-		pattern = fmt.Sprintf(`(?i)(%v|%v\S+)%v`, regexp.QuoteMeta(hostname), regexp.QuoteMeta(prefix), DefaultPromptSuffix)
+		pattern = fmt.Sprintf(`(?i)(%v|%v)%v`, regexp.QuoteMeta(hostname), regexp.QuoteMeta(prefix), DefaultPromptSuffix)
 	} else {
 		pattern = fmt.Sprintf(`(?i)%v%v`, regexp.QuoteMeta(hostname), DefaultPromptSuffix)
 	}
@@ -339,7 +339,7 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 		return re
 	}
 
-	util.Println("findPromptRegex fail, remaining:", remaining)
+	util.Println("findPromptRegex fail, remaining: %v", remaining)
 	return nil
 }
 
@@ -351,7 +351,8 @@ func findHostname(remaining string) string {
 	// 提示符格式非常自由，设备类型、厂商、用户配置不同，提示符格式也不同，可能包含中文、特殊字符，这里只能尽量匹配
 	//	1.Linux主机：
 	//		[root@localhost ~]#
-	//		[localhost.localdomain ~]$
+	//		[root@localhost.localdomain ~]$
+	//	    [root@192.168.1.24 /home/admin]$
 	//  2.网络设备配置模式：
 	//		hostname#
 	//		hostname(config)#
@@ -372,10 +373,6 @@ func findHostname(remaining string) string {
 	// 如果包含@，取@后面的内容作为主机名
 	if idx := strings.IndexByte(hostname, '@'); idx != -1 {
 		hostname = hostname[idx+1:]
-	}
-	// 如果包含.，取.前面的内容作为主机名
-	if idx := strings.IndexByte(hostname, '.'); idx != -1 {
-		hostname = hostname[:idx]
 	}
 	// 如果包含空格、波浪号，取空格、波浪号前面内容作为主机名
 	if idx := strings.IndexAny(hostname, " ~"); idx != -1 {
