@@ -4,6 +4,7 @@ import (
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
+	"github.com/3th1nk/easyshell/pkg/interceptor"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"time"
@@ -90,10 +91,12 @@ func NewSshShellFromClient(client *ssh.Client, config ...*SshShellConfig) (*SshS
 	}
 	r := core.New(pIn, pOut, pErr, cfg.Config)
 
+	// 此时可能会有一些输出，可能是欢迎信息、日志打印、密码修改提示等，需要读取并处理，防止影响后续操作
+	//	对于密码修改提示，部分设备是会提示密码过期，是否修改密码，也有设备是直接提示输入密码，这里只能处理前者，总是答复否
 	var headLine []string
-	_ = r.ReadToEndLine(3*time.Second, func(lines []string) {
+	_ = r.ReadToEndLine(5*time.Second, func(lines []string) {
 		headLine = append(headLine, lines...)
-	})
+	}, interceptor.AlwaysNo())
 	headLine = misc.TrimEmptyLine(headLine)
 
 	return &SshShell{ReadWriter: r, client: client, session: session, headLine: headLine}, nil
