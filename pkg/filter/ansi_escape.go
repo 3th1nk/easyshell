@@ -8,7 +8,7 @@ package filter
 //
 // TODO 对于修改内容的控制符，应该同时处理对应的内容
 //
-//	由于当前函数是在每次读操作之后调用，涉及修改的内容可能还未被完整的读取到缓存区，可能导致异常
+//	由于当前函数是在每次读操作之后调用，涉及修改的内容可能还未被完整的读取到缓冲区，可能导致异常
 func checkAnsiEscape(s []byte, pos int) (bool, int, [2]int) {
 	length := len(s)
 	if pos >= length || s[pos] != '\x1b' {

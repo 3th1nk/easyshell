@@ -92,11 +92,11 @@ func NewSshShellFromClient(client *ssh.Client, config ...*SshShellConfig) (*SshS
 	r := core.New(pIn, pOut, pErr, cfg.Config)
 
 	// 此时可能会有一些输出，可能是欢迎信息、日志打印、密码修改提示等，需要读取并处理，防止影响后续操作
-	//	对于密码修改提示，部分设备是会提示密码过期，是否修改密码，也有设备是直接提示输入密码，这里只能处理前者，总是答复否
+	//	对于密码修改提示，部分设备是会提示密码过期，是否修改密码，也有设备是直接提示输入密码，这里只处理前者，总是答复否，不自动修改密码
 	var headLine []string
 	_ = r.ReadToEndLine(5*time.Second, func(lines []string) {
 		headLine = append(headLine, lines...)
-	}, interceptor.AlwaysNo())
+	}, interceptor.AlwaysNo(true))
 	headLine = misc.TrimEmptyLine(headLine)
 
 	return &SshShell{ReadWriter: r, client: client, session: session, headLine: headLine}, nil

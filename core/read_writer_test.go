@@ -6,9 +6,10 @@ import (
 )
 
 func TestDefaultPromptRegex(t *testing.T) {
+	var rw ReadWriter
 	for _, obj := range []struct {
-		Prompt  string
-		Matched bool
+		Prompt string
+		Expect bool
 	}{
 		{"root@test-01 $", true},
 		{"root@test-01 #", true},
@@ -33,8 +34,13 @@ func TestDefaultPromptRegex(t *testing.T) {
 		{"$", false},
 		{" # ", false},
 		{"[mon@m41205302.cloud.208.am49 /home/mon]", true},
+		{"[testuser@localhost ~]$ Login:", false},
+		{"[testuser@localhost ~]$ Username:", false},
+		{"[testuser@localhost ~]$ Password:", false},
 	} {
-		assert.Equal(t, obj.Matched, defaultPromptRegex.MatchString(obj.Prompt))
+		if obj.Expect != rw.IsEndLine(obj.Prompt) {
+			t.Error(obj.Prompt)
+		}
 	}
 }
 

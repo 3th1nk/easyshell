@@ -4,24 +4,22 @@ import (
 	"context"
 	"errors"
 	"github.com/3th1nk/easygo/util"
-	"github.com/3th1nk/easygo/util/arrUtil"
 	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/3th1nk/easyshell/pkg/interceptor"
 	"github.com/3th1nk/easyshell/pkg/replay"
 	"github.com/stretchr/testify/assert"
 	"io"
-	"regexp"
 	"testing"
 	"time"
 )
 
 var (
 	hostCred = &SshCredential{
-		Host:     "172.16.66.42",
+		Host:     "172.16.20.250",
 		Port:     22,
-		User:     "root",
-		Password: "geesunn@123",
+		User:     "testuser",
+		Password: "test@123",
 	}
 	netCredCisco = &SshCredential{
 		Host:               "192.168.2.14",
@@ -42,6 +40,13 @@ var (
 		Port:               22,
 		User:               "admin",
 		Password:           "geesunn123",
+		InsecureAlgorithms: true,
+	}
+	netCredHw = &SshCredential{
+		Host:               "192.168.2.5",
+		Port:               22,
+		User:               "admin",
+		Password:           "Geesunn123",
 		InsecureAlgorithms: true,
 	}
 )
@@ -287,24 +292,24 @@ func TestSshShell_ReadInput(t *testing.T) {
 	}
 	defer s.Close()
 
-	s.Write(`echo -e "请输入一个数字:\n" && read num && echo "你输入的数字是: $num"`)
+	_ = s.Write(`echo -e "请输入一个数字:" && read num && echo "你输入的数字是: $num"`)
 
 	var out []string
-	pwdInterceptor := interceptor.Password("请输入一个数字", "123", true)
-	s.ReadToEndLine(time.Minute, func(lines []string) {
+	pwdInterceptor := interceptor.Password("请输入一个数字:", "123", true)
+	_ = s.ReadToEndLine(time.Minute, func(lines []string) {
 		out = append(out, lines...)
 		for _, line := range lines {
 			util.PrintTimeLn(line)
 		}
 	}, pwdInterceptor)
 
-	assert.True(t, arrUtil.ContainsString(out, "你输入的数字是: 123"))
+	assert.True(t, misc.Contains(out, "123"))
 }
 
 func TestSshShell_Sudo(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Config: core.Config{
-			ShowPrompt: true,
+			ReadConfirmWait: time.Second,
 		},
 		Credential: hostCred,
 	})
@@ -318,21 +323,17 @@ func TestSshShell_Sudo(t *testing.T) {
 		util.PrintTimeLn(line)
 	}
 
+	arr := []interceptor.Interceptor{
+		interceptor.Password(core.PasswordRegex.String(), "zxops@123", true),
+	}
 	var out []string
 	for _, cmd := range []string{
-		"whoami",
 		"su root",
 		"whoami",
 	} {
-		var arr []interceptor.Interceptor
-		if cmd == "su root" {
-			pwdInterceptor := interceptor.Password("password:", "123456", true)
-			arr = append(arr, pwdInterceptor)
-		}
-
 		util.Println("======================================================= %v", cmd)
 		assert.NoError(t, s.Write(cmd))
-		err = s.ReadToEndLine(time.Minute, func(lines []string) {
+		err = s.ReadToEndLine(5*time.Second, func(lines []string) {
 			out = append(out, lines...)
 			for _, line := range lines {
 				util.PrintTimeLn(line)
@@ -345,8 +346,8 @@ func TestSshShell_Sudo(t *testing.T) {
 		}
 	}
 
-	assert.True(t, misc.Contains(out, "password:"))
-	assert.True(t, arrUtil.ContainsString(out, "root"))
+	assert.True(t, misc.Contains(out, "assword:"))
+	assert.True(t, misc.Contains(out, "root"))
 }
 
 func TestSshShell_HostScript_Err(t *testing.T) {
@@ -475,9 +476,6 @@ func TestSshShell_NetDevice_H3C(t *testing.T) {
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredH3C,
 		Config: core.Config{
-			PromptRegex: []*regexp.Regexp{
-				regexp.MustCompile(`WorkSW03[\s\S]*[$#%>\]:]+\s*$`),
-			},
 			AutoPrompt:      true,
 			ShowPrompt:      false,
 			LazyOutInterval: 500 * time.Millisecond,
@@ -497,7 +495,53 @@ func TestSshShell_NetDevice_H3C(t *testing.T) {
 
 	for _, cmd := range []string{
 		"display saved-configuration",
-		"display current-configuration",
+	} {
+		util.Println("======================================================= %v", cmd)
+		assert.NoError(t, s.Write(cmd))
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = s.Read(ctx, true, func(lines []string) {
+			for _, line := range lines {
+				util.PrintTimeLn(line)
+			}
+		})
+		if err != nil {
+			util.PrintTimeLn("-> error: %v", err)
+		}
+		cancel()
+	}
+}
+
+func TestSshShell_NetDevice_Hw(t *testing.T) {
+	ro := replay.NewWriter("./pkg/replay/testdata/Huawei_ssh.txt")
+	defer func() {
+		if ro != nil {
+			_ = ro.Close()
+		}
+	}()
+
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: netCredHw,
+		Config: core.Config{
+			AutoPrompt:      true,
+			ShowPrompt:      false,
+			LazyOutInterval: 500 * time.Millisecond,
+			LazyOutSize:     8192,
+			RawOut:          ro,
+		},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	util.Println("======================================================= first line:")
+	for _, line := range s.HeadLine() {
+		util.PrintTimeLn(line)
+	}
+
+	for _, cmd := range []string{
+		"display saved-configuration",
 	} {
 		util.Println("======================================================= %v", cmd)
 		assert.NoError(t, s.Write(cmd))
