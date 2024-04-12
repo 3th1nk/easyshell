@@ -13,16 +13,6 @@ import (
 	"unicode"
 )
 
-// 提示符匹配可能遇到一些异常情况：
-//
-//	1、提示符后回显提示内容，这个已在鉴权时强制关闭回显
-//	2、终端不停打印日志内容，导致超时错误(无法正确匹配提示符 或者 无法判定登录成功的状态)，比如登录日志里面包含“LOGIN:”，这种情况必须关闭终端打印
-var (
-	DefaultUserRegex   = regexp.MustCompile(`(?i).*(login|user(name)?):\s*$`)
-	DefaultPassRegex   = regexp.MustCompile(`(?i).*pass(word)?:\s*$`)
-	DefaultPromptRegex = regexp.MustCompile(`.*[` + core.DefaultPromptTailChars + `]\s*$`)
-)
-
 type Client struct {
 	c          net.Conn
 	r          *bufio.Reader
@@ -47,13 +37,13 @@ type ClientConfig struct {
 
 func NewClient(cfg *ClientConfig) (*Client, error) {
 	if cfg.UserRegex == nil {
-		cfg.UserRegex = DefaultUserRegex
+		cfg.UserRegex = core.UsernameRegex
 	}
 	if cfg.PassRegex == nil {
-		cfg.PassRegex = DefaultPassRegex
+		cfg.PassRegex = core.PasswordRegex
 	}
 	if cfg.PromptRegex == nil {
-		cfg.PromptRegex = DefaultPromptRegex
+		cfg.PromptRegex = core.DefaultPromptRegex
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 15 * time.Second
@@ -449,7 +439,11 @@ func (this *Client) SkipUtil2(delims ...string) (int, error) {
 
 // doReadUtilPrompt 读取数据直到遇到提示符，返回读取的数据和提示符
 //
-//	该方法未处理 More、Continue 的情况
+// 提示符匹配可能遇到一些异常情况：
+//
+//	1、该方法未处理 More、Continue 的情况
+//	2、提示符后回显提示内容，这个已在鉴权时强制关闭回显
+//	3、终端不停打印日志内容，导致超时错误(无法正确匹配提示符 或者 无法判定登录成功的状态)，比如登录日志里面包含“LOGIN:”，这种情况必须关闭终端打印
 func (this *Client) doReadUtilPrompt() (data bytes.Buffer, prompt bytes.Buffer, err error) {
 	for {
 		var b byte

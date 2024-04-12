@@ -15,18 +15,10 @@ import (
 	"time"
 )
 
-const (
-	DefaultPromptTailChars = `$#%>\]:`
-	DefaultPromptSuffix    = `[\s\S]*[` + DefaultPromptTailChars + `]\s*$`
-)
-
-var (
-	defaultInterceptors = []interceptor.Interceptor{
-		interceptor.More(),
-		interceptor.Continue(),
-	}
-	defaultPromptRegex = regexp.MustCompile(`\S+` + DefaultPromptSuffix)
-)
+var defaultInterceptors = []interceptor.Interceptor{
+	interceptor.More(),
+	interceptor.Continue(),
+}
 
 func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	if misc.IsNil(in) {
@@ -153,24 +145,8 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 					onOut(lines)
 				}
 
-				// 命令行结束提示符
-				if remaining != "" && r.IsEndLine(remaining) {
-					r.prompt = remaining
-					// 仅当默认的提示符匹配规则匹配上 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
-					if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
-						if re := findPromptRegex(remaining); re != nil {
-							r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
-							util.PrintTimeLn("correct end prompt regex:" + re.String())
-						}
-					}
-					stop = stopOnEndLine
-					return !r.cfg.ShowPrompt
-				} else {
-					stop = false
-				}
-
-				if len(interceptors) != 0 {
-					// 缓存区所有内容
+				// 匹配优先级：指定的拦截器规则 > 命令结束提示符规则
+				if len(interceptors) > 0 {
 					if outBuf.Len() > 0 {
 						outBuf.WriteString("\n")
 					}
@@ -181,15 +157,36 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 					}
 					for _, f := range interceptors {
 						if match, showOut, input := f(outBuf.String()); match {
-							//util.PrintTimeLn("interceptor match: %x", remaining)
+							//util.PrintTimeLn("interceptor matched: %v => %v", outBuf.String(), input)
 							outBuf.Reset()
 							// TODO 如果是匹配多行内容的拦截器，前面行的内容总是被返回了，后续优化
-							if showOut && remaining != "" && onOut != nil {
-								onOut([]string{remaining})
-							}
-							_, _ = r.in.Write([]byte(input))
-							return true
+							_ = r.WriteRaw([]byte(input))
+							return !showOut
 						}
+					}
+				}
+
+				stop = false
+				// 命令行结束提示符
+				if remaining != "" && r.IsEndLine(remaining) {
+					if len(r.cfg.PromptRegex) == 0 {
+						// 如果是默认的提示符匹配规则匹配上，可能是选项提示符，也有可能是主机名提示符
+						if !FlexibleOptionPromptRegex.MatchString(remaining) {
+							//  当不是选项提示符且AutoPrompt=true时，尝试自动纠正主机名提示符匹配规则
+							if r.cfg.AutoPrompt {
+								if re := findPromptRegex(remaining); re != nil {
+									r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
+									util.PrintTimeLn("prompt:" + remaining + ", correct prompt regex:" + re.String())
+								}
+							}
+							r.prompt = remaining
+							stop = stopOnEndLine
+							return !r.cfg.ShowPrompt
+						}
+					} else {
+						r.prompt = remaining
+						stop = stopOnEndLine
+						return !r.cfg.ShowPrompt
 					}
 				}
 
@@ -197,13 +194,12 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 				if remaining != "" {
 					for _, f := range defaultInterceptors {
 						if match, showOut, input := f(remaining); match {
-							//util.PrintTimeLn("default interceptor match: %x", remaining)
 							outBuf.Reset()
 							if showOut && onOut != nil {
 								onOut([]string{remaining})
 							}
-							_, _ = r.in.Write([]byte(input))
-							return true
+							_ = r.WriteRaw([]byte(input))
+							return !showOut
 						}
 					}
 				}
@@ -276,21 +272,30 @@ exit:
 }
 
 func (r *ReadWriter) IsEndLine(s string) bool {
+	var matched bool
 	if len(r.cfg.PromptRegex) != 0 {
 		for _, v := range r.cfg.PromptRegex {
 			if v != nil && v.MatchString(s) {
-				//util.PrintTimeLn("prompt matched:" + s)
-				return true
+				// util.PrintTimeLn("prompt matched:" + s)
+				matched = true
 			}
 		}
-		return false
 	}
 
-	if defaultPromptRegex.MatchString(s) {
-		//util.PrintTimeLn("default prompt matched:" + s)
-		return true
+	if !matched && DefaultPromptRegex.MatchString(s) {
+		// util.PrintTimeLn("default prompt matched:" + s)
+		matched = true
 	}
-	return false
+
+	// 由于尾缀特征字符的缘故，可能误匹配，但目前没有更优的规则，先把已知的误匹配场景排除
+	//	如：
+	//		[testuser@localhost ~]$ Username:
+	//		[testuser@localhost ~]$ Password:
+	if matched && (UsernameRegex.MatchString(s) || PasswordRegex.MatchString(s)) {
+		matched = false
+	}
+
+	return matched
 }
 
 // findPromptRegex
@@ -321,9 +326,9 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 
 	var pattern string
 	if prefix != "" {
-		pattern = fmt.Sprintf(`(?i)(%v|%v)%v`, hostname, prefix, DefaultPromptSuffix)
+		pattern = fmt.Sprintf(`(?i)(%v|%v)%v`, hostname, prefix, DefaultPromptSuffixPattern)
 	} else {
-		pattern = fmt.Sprintf(`(?i)%v%v`, hostname, DefaultPromptSuffix)
+		pattern = fmt.Sprintf(`(?i)%v%v`, hostname, DefaultPromptSuffixPattern)
 	}
 	if re, err := regexp.Compile(pattern); err == nil {
 		return re
@@ -331,9 +336,9 @@ func findPromptRegex(remaining string) *regexp.Regexp {
 
 	// 主机名中可能包含特殊字符，如果正则编译失败，尝试转义后再次编译
 	if prefix != "" {
-		pattern = fmt.Sprintf(`(?i)(%v|%v)%v`, regexp.QuoteMeta(hostname), regexp.QuoteMeta(prefix), DefaultPromptSuffix)
+		pattern = fmt.Sprintf(`(?i)(%v|%v)%v`, regexp.QuoteMeta(hostname), regexp.QuoteMeta(prefix), DefaultPromptSuffixPattern)
 	} else {
-		pattern = fmt.Sprintf(`(?i)%v%v`, regexp.QuoteMeta(hostname), DefaultPromptSuffix)
+		pattern = fmt.Sprintf(`(?i)%v%v`, regexp.QuoteMeta(hostname), DefaultPromptSuffixPattern)
 	}
 	if re, err := regexp.Compile(pattern); err == nil {
 		return re

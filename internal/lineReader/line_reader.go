@@ -158,14 +158,15 @@ func (lr *LineReader) PopLines(f func(lines []string, remaining string) (dropRem
 		return 0, nil
 	}
 
-	droppedLines, droppedRemaining := len(lr.lines), 0
+	var droppedRemaining int
 	if f(lr.lines, lr.remaining) {
 		lr.remaining = ""
 		droppedRemaining = 1
 	}
 
-	if droppedLines != 0 {
-		lr.lines = make([]string, 0, 4)
+	droppedLines := len(lr.lines)
+	if droppedLines > 0 {
+		lr.lines = lr.lines[:0]
 	}
 
 	return droppedLines + droppedRemaining, lr.err
