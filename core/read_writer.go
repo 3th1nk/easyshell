@@ -141,11 +141,12 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 
 		case <-ticker.C:
 			_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
+				stop = false
 				if len(lines) != 0 && onOut != nil {
 					onOut(lines)
 				}
 
-				// 匹配优先级：指定的拦截器规则 > 命令结束提示符规则
+				// 匹配优先级：指定的拦截器规则 > 默认拦截器规则 > 命令结束提示符规则
 				if len(interceptors) > 0 {
 					if outBuf.Len() > 0 {
 						outBuf.WriteString("\n")
@@ -166,43 +167,36 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 					}
 				}
 
-				stop = false
-				// 命令行结束提示符
-				if remaining != "" && r.IsEndLine(remaining) {
-					if len(r.cfg.PromptRegex) == 0 {
-						// 如果是默认的提示符匹配规则匹配上，可能是选项提示符，也有可能是主机名提示符
-						if !FlexibleOptionPromptRegex.MatchString(remaining) {
-							//  当不是选项提示符且AutoPrompt=true时，尝试自动纠正主机名提示符匹配规则
-							if r.cfg.AutoPrompt {
-								if re := findPromptRegex(remaining); re != nil {
-									r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
-									util.PrintTimeLn("prompt:" + remaining + ", correct prompt regex:" + re.String())
-								}
-							}
-							r.prompt = remaining
-							stop = stopOnEndLine
-							return !r.cfg.ShowPrompt
+				if remaining == "" {
+					return false
+				}
+
+				// 默认拦截器规则
+				for _, f := range defaultInterceptors {
+					if match, showOut, input := f(remaining); match {
+						outBuf.Reset()
+						if showOut && onOut != nil {
+							onOut([]string{remaining})
 						}
-					} else {
-						r.prompt = remaining
-						stop = stopOnEndLine
-						return !r.cfg.ShowPrompt
+						_ = r.WriteRaw([]byte(input))
+						return !showOut
 					}
 				}
 
-				// 最后一行内容
-				if remaining != "" {
-					for _, f := range defaultInterceptors {
-						if match, showOut, input := f(remaining); match {
-							outBuf.Reset()
-							if showOut && onOut != nil {
-								onOut([]string{remaining})
-							}
-							_ = r.WriteRaw([]byte(input))
-							return !showOut
+				// 命令输出结束
+				if r.IsEndLine(remaining) {
+					//  当未指定提示符规则 且 AutoPrompt=true时，尝试自动纠正提示符匹配规则
+					if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
+						if re := findPromptRegex(remaining); re != nil {
+							r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
+							util.PrintTimeLn("prompt:" + remaining + ", correct prompt regex:" + re.String())
 						}
 					}
+					r.prompt = remaining
+					stop = stopOnEndLine
+					return !r.cfg.ShowPrompt
 				}
+
 				return false
 			})
 			if e != nil {
@@ -291,7 +285,7 @@ func (r *ReadWriter) IsEndLine(s string) bool {
 	//	如：
 	//		[testuser@localhost ~]$ Username:
 	//		[testuser@localhost ~]$ Password:
-	if matched && (UsernameRegex.MatchString(s) || PasswordRegex.MatchString(s)) {
+	if matched && (UsernameRegex.MatchString(s) || PasswordRegex.MatchString(s) || FlexibleOptionPromptRegex.MatchString(s)) {
 		matched = false
 	}
 
