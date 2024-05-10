@@ -32,14 +32,14 @@ func TestClient_Read(t *testing.T) {
 	t.Log(client.promptStr)
 
 	cmd := "show version"
-	_, err := client.Write([]byte(cmd + "\n"))
+	_, err := client.Write([]byte(cmd+"\n"), 5*time.Second)
 	assert.NoError(t, err)
 
 	data, _, err := client.ReadUtil2(cmd)
 	assert.NoError(t, err)
 	t.Log(data.String())
 
-	data, _, err = client.doReadUtilPrompt()
+	data, _, err = client.doReadUtilPrompt(15 * time.Second)
 	assert.NoError(t, err)
 	t.Log(data.String())
 }
