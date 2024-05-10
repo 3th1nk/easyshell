@@ -123,12 +123,19 @@ func (this *Client) Read(buf []byte) (int, error) {
 }
 
 // Write is for implements an io.Writer interface.
-func (this *Client) Write(buf []byte) (n int, err error) {
+func (this *Client) Write(buf []byte, timeout ...time.Duration) (n int, err error) {
 	var s strings.Builder
 	if this.cfg.UnixWriteMode {
 		s.Write([]byte{cmd_IAC, LF})
 	} else {
 		s.WriteByte(cmd_IAC)
+	}
+
+	if len(timeout) > 0 && timeout[0] > 0 {
+		_ = this.SetWriteDeadline(time.Now().Add(timeout[0]))
+		defer func() {
+			_ = this.SetWriteDeadline(time.Time{})
+		}()
 	}
 
 	for len(buf) > 0 {
@@ -444,7 +451,14 @@ func (this *Client) SkipUtil2(delims ...string) (int, error) {
 //	1、该方法未处理 More、Continue 的情况
 //	2、提示符后回显提示内容，这个已在鉴权时强制关闭回显
 //	3、终端不停打印日志内容，导致超时错误(无法正确匹配提示符 或者 无法判定登录成功的状态)，比如登录日志里面包含“LOGIN:”，这种情况必须关闭终端打印
-func (this *Client) doReadUtilPrompt() (data bytes.Buffer, prompt bytes.Buffer, err error) {
+func (this *Client) doReadUtilPrompt(timeout ...time.Duration) (data bytes.Buffer, prompt bytes.Buffer, err error) {
+	if len(timeout) > 0 && timeout[0] > 0 {
+		_ = this.SetReadDeadline(time.Now().Add(timeout[0]))
+		defer func() {
+			_ = this.SetReadDeadline(time.Time{})
+		}()
+	}
+
 	for {
 		var b byte
 		b, err = this.ReadByte()
@@ -476,7 +490,7 @@ func (this *Client) FirstPrompt() string {
 
 // ScrollToNewLine 滚动到新的一行
 func (this *Client) ScrollToNewLine() error {
-	if _, err := this.Write([]byte{LF}); err != nil {
+	if _, err := this.Write([]byte{LF}, 5*time.Second); err != nil {
 		return err
 	}
 	return this.SkipUtil(LF)
@@ -487,7 +501,7 @@ func (this *Client) doAuth() error {
 	var enterUser, enterPass bool
 	for {
 		// 读取数据直到遇到提示符
-		data, prompt, err := this.doReadUtilPrompt()
+		data, prompt, err := this.doReadUtilPrompt(this.cfg.Timeout)
 		if err != nil {
 			return err
 		}
@@ -511,7 +525,7 @@ func (this *Client) doAuth() error {
 			}
 
 			// 输入用户名
-			if _, err = this.Write([]byte(this.cfg.User + "\n")); err != nil {
+			if _, err = this.Write([]byte(this.cfg.User+"\n"), 5*time.Second); err != nil {
 				return err
 			}
 			enterUser = true
@@ -526,7 +540,7 @@ func (this *Client) doAuth() error {
 				return fmt.Errorf("invalid username or password")
 			}
 
-			if _, err = this.Write([]byte(this.cfg.Password + "\n")); err != nil {
+			if _, err = this.Write([]byte(this.cfg.Password+"\n"), 5*time.Second); err != nil {
 				return err
 			}
 			enterPass = true
