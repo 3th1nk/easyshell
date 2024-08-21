@@ -29,6 +29,7 @@ type ClientConfig struct {
 	PassRegex     *regexp.Regexp // 匹配密码提示符的正则
 	PromptRegex   *regexp.Regexp // 匹配提示符的正则
 	Timeout       time.Duration  // 连接超时时间, 默认15秒
+	WriteTimeout  time.Duration  // 写超时时间, 默认5秒
 	UnixWriteMode bool           // 如果设置，Write 将任何 '\n' (LF) 转换为 '\r\n' (CR LF)
 	Echo          bool           // 如果设置，将允许回显（取决于服务端是否支持），部分网络设备上无效（总是回显）
 	SuppressGA    bool           // 如果设置，将抑制 "go ahead" 命令
@@ -47,6 +48,9 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 15 * time.Second
+	}
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = 5 * time.Second
 	}
 
 	var (
@@ -123,7 +127,7 @@ func (this *Client) Read(buf []byte) (int, error) {
 }
 
 // Write is for implements an io.Writer interface.
-func (this *Client) Write(buf []byte, timeout ...time.Duration) (n int, err error) {
+func (this *Client) Write(buf []byte) (n int, err error) {
 	var s strings.Builder
 	if this.cfg.UnixWriteMode {
 		s.Write([]byte{cmd_IAC, LF})
@@ -131,12 +135,10 @@ func (this *Client) Write(buf []byte, timeout ...time.Duration) (n int, err erro
 		s.WriteByte(cmd_IAC)
 	}
 
-	if len(timeout) > 0 && timeout[0] > 0 {
-		_ = this.SetWriteDeadline(time.Now().Add(timeout[0]))
-		defer func() {
-			_ = this.SetWriteDeadline(time.Time{})
-		}()
-	}
+	_ = this.SetWriteDeadline(time.Now().Add(this.cfg.WriteTimeout))
+	defer func() {
+		_ = this.SetWriteDeadline(time.Time{})
+	}()
 
 	for len(buf) > 0 {
 		var k int
@@ -490,7 +492,7 @@ func (this *Client) FirstPrompt() string {
 
 // ScrollToNewLine 滚动到新的一行
 func (this *Client) ScrollToNewLine() error {
-	if _, err := this.Write([]byte{LF}, 5*time.Second); err != nil {
+	if _, err := this.Write([]byte{LF}); err != nil {
 		return err
 	}
 	return this.SkipUtil(LF)
@@ -525,7 +527,7 @@ func (this *Client) doAuth() error {
 			}
 
 			// 输入用户名
-			if _, err = this.Write([]byte(this.cfg.User+"\n"), 5*time.Second); err != nil {
+			if _, err = this.Write([]byte(this.cfg.User + "\n")); err != nil {
 				return err
 			}
 			enterUser = true
@@ -540,7 +542,7 @@ func (this *Client) doAuth() error {
 				return fmt.Errorf("invalid username or password")
 			}
 
-			if _, err = this.Write([]byte(this.cfg.Password+"\n"), 5*time.Second); err != nil {
+			if _, err = this.Write([]byte(this.cfg.Password + "\n")); err != nil {
 				return err
 			}
 			enterPass = true
