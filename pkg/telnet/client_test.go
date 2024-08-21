@@ -32,7 +32,7 @@ func TestClient_Read(t *testing.T) {
 	t.Log(client.promptStr)
 
 	cmd := "show version"
-	_, err := client.Write([]byte(cmd+"\n"), 5*time.Second)
+	_, err := client.Write([]byte(cmd + "\n"))
 	assert.NoError(t, err)
 
 	data, _, err := client.ReadUtil2(cmd)
