@@ -161,7 +161,7 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 							//util.PrintTimeLn("interceptor matched: %v => %v", outBuf.String(), input)
 							outBuf.Reset()
 							// TODO 如果是匹配多行内容的拦截器，前面行的内容总是被返回了，后续优化
-							_ = r.WriteRaw([]byte(input))
+							_ = r.Write(input) // 这里自动加了 \n
 							return !showOut
 						}
 					}
