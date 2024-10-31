@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 )
 
-// Sftp 获取sftp客户端，调用方无需Close
-func (this *SshShell) Sftp(opt ...sftp.ClientOption) (*sftp.Client, error) {
+// SftpClient 获取sftp客户端，调用方无需Close
+func (this *SshShell) SftpClient(opt ...sftp.ClientOption) (*sftp.Client, error) {
 	if this.sftp == nil {
 		var err error
 		if this.sftp, err = sftp.NewClient(this.client, opt...); err != nil {
@@ -23,10 +23,9 @@ func (this *SshShell) uploadFile(cli *sftp.Client, localPath, remotePath string,
 
 check:
 	rfi, err := cli.Stat(remotePath)
-	if !os.IsNotExist(err) {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-
 	if rfi != nil {
 		if rfi.IsDir() {
 			if filepath.Base(localPath) == filepath.Base(remotePath) {
@@ -91,7 +90,7 @@ func (this *SshShell) uploadDir(cli *sftp.Client, localPath, remotePath string, 
 }
 
 func (this *SshShell) SftpUpload(localPath, remotePath string, force bool) error {
-	cli, err := this.Sftp(sftp.MaxPacket(1 << 15))
+	cli, err := this.SftpClient(sftp.MaxPacket(1 << 15))
 	if err != nil {
 		return err
 	}
@@ -111,7 +110,7 @@ func (this *SshShell) downFile(cli *sftp.Client, remotePath, localPath string, f
 
 check:
 	lfi, err := os.Stat(localPath)
-	if !os.IsNotExist(err) {
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if lfi != nil {
@@ -178,12 +177,12 @@ func (this *SshShell) downDir(cli *sftp.Client, remotePath, localPath string, fo
 }
 
 func (this *SshShell) SftpDown(remotePath, localPath string, force bool) error {
-	cli, err := this.Sftp(sftp.MaxPacket(1 << 15))
+	cli, err := this.SftpClient(sftp.MaxPacket(1 << 15))
 	if err != nil {
 		return err
 	}
 
-	rfi, err := os.Stat(remotePath)
+	rfi, err := cli.Stat(remotePath)
 	if err != nil {
 		return err
 	}
@@ -195,7 +194,7 @@ func (this *SshShell) SftpDown(remotePath, localPath string, force bool) error {
 
 // SftpRemove 删除远程文件、目录，如果是目录，则递归删除目录及子目录下的所有文件
 func (this *SshShell) SftpRemove(path string) error {
-	cli, err := this.Sftp(sftp.MaxPacket(1 << 15))
+	cli, err := this.SftpClient(sftp.MaxPacket(1 << 15))
 	if err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func (this *Replay) Close() error {
 func (this *Replay) Play(ctx context.Context) error {
 	return this.cr.Read(ctx, false, func(lines []string) {
 		for _, line := range lines {
-			util.PrintTimeLn(line)
+			util.Println(line)
 		}
 	})
 }

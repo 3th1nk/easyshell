@@ -29,7 +29,7 @@ type SshCredential struct {
 // NewSshClient 创建一个新的 SshClient
 func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 	addr := fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
-	timeout := util.IfInt(cred.Timeout > 0, cred.Timeout, 15)
+	timeout := util.IfEmptyInt(cred.Timeout, 15)
 
 	cfg := ssh.Config{}
 	cfg.SetDefaults()
