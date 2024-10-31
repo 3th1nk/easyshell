@@ -16,7 +16,7 @@ type TelnetCredential struct {
 }
 
 func NewTelnetClient(cred *TelnetCredential) (*telnet.Client, error) {
-	timeout := util.IfInt(cred.Timeout > 0, cred.Timeout, 15)
+	timeout := util.IfEmptyInt(cred.Timeout, 15)
 	return telnet.NewClient(&telnet.ClientConfig{
 		Addr:     fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 23)),
 		User:     cred.User,
