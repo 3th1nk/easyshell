@@ -16,7 +16,7 @@ type SshShellConfig struct {
 	Echo       bool           // 模拟终端回显，默认值 false，部分网络设备上无效（总是回显）
 	Term       string         // 模拟终端类型，默认值 VT100
 	TermHeight int            // 模拟终端高度，默认值 200
-	TermWidth  int            // 模拟终端宽度，默认值 80
+	TermWidth  int            // 模拟终端宽度，默认值 256，宽度太小可能会出现乱码（多字节编码被回车换行截断）
 }
 
 func (c *SshShellConfig) EnsureInit() {
@@ -27,7 +27,7 @@ func (c *SshShellConfig) EnsureInit() {
 		c.TermHeight = 200
 	}
 	if c.TermWidth <= 0 {
-		c.TermWidth = 80
+		c.TermWidth = 256
 	}
 }
 
