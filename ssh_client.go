@@ -19,14 +19,14 @@ var (
 	//	使用ssh命令测试能成功连接，对比发现其使用的公钥算法是ssh-ed25519，造成该差异的原因是go官方库默认的公钥算法列表中ssh-ed25519排在最后，
 	//	当ssh服务端仅允许ssh-ed25519和rsa-sha2-512时，会优先匹配rsa-sha2-512算法，为了规避该问题，参考OpenSSH公钥算法顺序调整算法列表。
 	openSshHostKeyAlgorithms = []string{
-		ssh.KeyAlgoED25519, ssh.CertAlgoED25519v01,
-		ssh.KeyAlgoRSA, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512,
-		ssh.KeyAlgoDSA,
-		ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521,
-		ssh.CertAlgoRSAv01,
-		ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01,
-		ssh.CertAlgoDSAv01,
+		ssh.CertAlgoED25519v01,
 		ssh.CertAlgoECDSA256v01, ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01,
+		ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01,
+		ssh.CertAlgoRSAv01, ssh.CertAlgoDSAv01,
+		ssh.KeyAlgoED25519,
+		ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521,
+		ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512,
+		ssh.KeyAlgoRSA, ssh.KeyAlgoDSA,
 	}
 )
 
