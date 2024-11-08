@@ -14,6 +14,20 @@ var (
 	insecureSshCiphers      = []string{"arcfour256", "arcfour128", "arcfour", "aes128-cbc", "3des-cbc", "aes192-cbc", "aes256-cbc"}
 	insecureSshKeyExchanges = []string{"diffie-hellman-group1-sha1", "diffie-hellman-group-exchange-sha1", "diffie-hellman-group-exchange-sha256"}
 	insecureSshMACs         = []string{"hmac-md5", "hmac-md5-96"}
+	// 按照RFC8332规范，rsa-sha2-256和rsa-sha2-512的公钥格式仍然复用ssh-rsa，但存在一些不规范的设备，其公钥格式为rsa-sha2-512，
+	//而go官方库中严格按照规范解析，会提示错误(unknown key algorithm: rsa-sha2-512);
+	//	使用ssh命令测试能成功连接，对比发现其使用的公钥算法是ssh-ed25519，造成该差异的原因是go官方库默认的公钥算法列表中ssh-ed25519排在最后，
+	//	当ssh服务端仅允许ssh-ed25519和rsa-sha2-512时，会优先匹配rsa-sha2-512算法，为了规避该问题，参考OpenSSH公钥算法顺序调整算法列表。
+	openSshHostKeyAlgorithms = []string{
+		ssh.KeyAlgoED25519, ssh.CertAlgoED25519v01,
+		ssh.KeyAlgoRSA, ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512,
+		ssh.KeyAlgoDSA,
+		ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521,
+		ssh.CertAlgoRSAv01,
+		ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01,
+		ssh.CertAlgoDSAv01,
+		ssh.CertAlgoECDSA256v01, ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01,
+	}
 )
 
 type SshCredential struct {
@@ -73,11 +87,12 @@ func NewSshClient(cred *SshCredential) (*ssh.Client, error) {
 	}
 
 	c, e := ssh.Dial("tcp", addr, &ssh.ClientConfig{
-		Config:          cfg,
-		User:            cred.User,
-		Auth:            auths,
-		HostKeyCallback: hostKeyCallback,
-		Timeout:         timeout,
+		Config:            cfg,
+		User:              cred.User,
+		Auth:              auths,
+		HostKeyCallback:   hostKeyCallback,
+		HostKeyAlgorithms: openSshHostKeyAlgorithms,
+		Timeout:           timeout,
 	})
 	if e != nil {
 		if v, _ := e.(*net.OpError); v != nil {
