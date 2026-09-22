@@ -4,14 +4,14 @@ package easyshell
 type Vendor string
 
 const (
-	VendorGeneric    Vendor = ""            // 未知厂商(无禁用分页命令，依赖 More 拦截器兜底)
-	VendorH3C        Vendor = "h3c"         // H3C/Comware
-	VendorCiscoIOS   Vendor = "cisco-ios"   // Cisco IOS/IOS-XE
-	VendorCiscoNXOS  Vendor = "cisco-nxos"  // Cisco NX-OS
-	VendorHuawei     Vendor = "huawei"      // 华为 VRP
-	VendorJuniper    Vendor = "juniper"     // Juniper Junos
-	VendorRuijie     Vendor = "ruijie"      // 锐捷(类Cisco语法)
-	VendorHPComware  Vendor = "comware"     // HP Comware(同H3C语法)
+	VendorGeneric   Vendor = ""           // 未知厂商(无禁用分页命令，依赖 More 拦截器兜底)
+	VendorH3C       Vendor = "h3c"        // H3C/Comware
+	VendorCiscoIOS  Vendor = "cisco-ios"  // Cisco IOS/IOS-XE
+	VendorCiscoNXOS Vendor = "cisco-nxos" // Cisco NX-OS
+	VendorHuawei    Vendor = "huawei"     // 华为 VRP
+	VendorJuniper   Vendor = "juniper"    // Juniper Junos
+	VendorRuijie    Vendor = "ruijie"     // 锐捷(类Cisco语法)
+	VendorHPComware Vendor = "comware"    // HP Comware(同H3C语法)
 )
 
 // pagingDisableCommands 各厂商的"临时禁用分页"命令(仅当前会话生效，不保存配置)。
