@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,7 +188,7 @@ func dialSshChain(cred SshCredential, proxy *ProxyConfig) (client *ssh.Client, c
 }
 
 func sshAddr(cred SshCredential) string {
-	return fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
+	return net.JoinHostPort(cred.Host, strconv.Itoa(util.IfEmptyInt(cred.Port, 22)))
 }
 
 // sshAuthMethods 构建认证方式，优先级：密钥 → SSH Agent → 密码

@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -108,7 +109,7 @@ func (s *SshServer) handleConn(conn net.Conn, config *ssh.ServerConfig) {
 				_ = newChannel.Reject(ssh.ConnectionFailed, "bad payload")
 				continue
 			}
-			upstream, err := net.Dial("tcp", fmt.Sprintf("%s:%d", p.Addr, p.Port))
+			upstream, err := net.Dial("tcp", net.JoinHostPort(p.Addr, strconv.Itoa(int(p.Port))))
 			if err != nil {
 				_ = newChannel.Reject(ssh.ConnectionFailed, "dial failed: "+err.Error())
 				continue
