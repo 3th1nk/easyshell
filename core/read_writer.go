@@ -70,6 +70,10 @@ type ReadWriter struct {
 	mu          sync.Mutex
 	prompt      string           // 最近一次匹配到的提示符
 	promptRegex []*regexp.Regexp // 提示符匹配规则（从 cfg.PromptRegex 拷贝，AutoPrompt 时可能追加，不回写到调用方的 Config）
+
+	// readMu 保证同一时刻只有一个 Read 在执行：
+	//	并发的多个 Read 会互相争抢 PopLines 导致输出串流错乱
+	readMu sync.Mutex
 }
 
 func (r *ReadWriter) Stop() {
@@ -121,7 +125,55 @@ func (r *ReadWriter) ReadAll(timeout time.Duration, onOut func(lines []string), 
 	return r.Read(ctx, false, onOut, interceptors...)
 }
 
+// ReadToEndLineContext 读取输出直到提示符，支持通过 context 取消
+func (r *ReadWriter) ReadToEndLineContext(ctx context.Context, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	return r.Read(ctx, true, onOut, interceptors...)
+}
+
+// ReadAllContext 读取全部输出直到流结束，支持通过 context 取消
+func (r *ReadWriter) ReadAllContext(ctx context.Context, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	return r.Read(ctx, false, onOut, interceptors...)
+}
+
+// Run 写入命令并读取输出直到提示符，等价于 Write + ReadToEndLine
+func (r *ReadWriter) Run(cmd string, timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	if err := r.Write(cmd); err != nil {
+		return err
+	}
+	return r.ReadToEndLine(timeout, onOut, interceptors...)
+}
+
+// RunAll 写入命令并读取全部输出直到流结束，等价于 Write + ReadAll
+func (r *ReadWriter) RunAll(cmd string, timeout time.Duration, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	if err := r.Write(cmd); err != nil {
+		return err
+	}
+	return r.ReadAll(timeout, onOut, interceptors...)
+}
+
+// RunContext 写入命令并读取输出直到提示符，支持通过 context 取消
+func (r *ReadWriter) RunContext(ctx context.Context, cmd string, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	if err := r.Write(cmd); err != nil {
+		return err
+	}
+	return r.Read(ctx, true, onOut, interceptors...)
+}
+
+// RunAllContext 写入命令并读取全部输出直到流结束，支持通过 context 取消
+func (r *ReadWriter) RunAllContext(ctx context.Context, cmd string, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	if err := r.Write(cmd); err != nil {
+		return err
+	}
+	return r.Read(ctx, false, onOut, interceptors...)
+}
+
 func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+	// 单读者守卫：并发 Read 会互相争抢输出导致串流错乱
+	if !r.readMu.TryLock() {
+		return &Error{Op: "read", Err: errors.New("concurrent read not allowed")}
+	}
+	defer r.readMu.Unlock()
+
 	if r.cfg.BeforeRead != nil {
 		if err = r.cfg.BeforeRead(); err != nil {
 			return err

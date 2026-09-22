@@ -1,9 +1,11 @@
 package core
 
 import (
+	"context"
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"strings"
 	"testing"
 	"time"
 )
@@ -147,4 +149,73 @@ func TestReadWriter_WriteRaw_AfterStop(t *testing.T) {
 	rw.Stop()
 	assert.Error(t, rw.WriteRaw([]byte("test")))
 	assert.Error(t, rw.Write("test"))
+}
+
+// TestReadWriter_ConcurrentRead 并发Read应被拒绝，避免互相争抢输出导致串流错乱
+func TestReadWriter_ConcurrentRead(t *testing.T) {
+	rw, _, outWriter := newTestReadWriter(Config{
+		ReadConfirmWait: 10 * time.Millisecond,
+		ReadConfirm:     2,
+	})
+	defer rw.Stop()
+
+	// 第一个Read阻塞等待输出(不写数据)
+	done := make(chan error, 1)
+	go func() {
+		done <- rw.ReadToEndLine(30*time.Second, func([]string) {})
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	// 第二个Read应立即返回错误
+	start := time.Now()
+	err := rw.ReadToEndLine(30*time.Second, func([]string) {})
+	assert.Error(t, err)
+	assert.Less(t, time.Since(start), time.Second, "并发Read应立即返回错误")
+
+	// 输出提示符让第一个Read正常结束
+	_, _ = outWriter.Write([]byte("prompt# "))
+	assert.NoError(t, <-done)
+}
+
+// TestReadWriter_Run 验证Run便捷方法(等价于Write+ReadToEndLine)
+func TestReadWriter_Run(t *testing.T) {
+	rw, inReader, outWriter := newTestReadWriter(Config{
+		ReadConfirmWait: 10 * time.Millisecond,
+		ReadConfirm:     2,
+	})
+	defer rw.Stop()
+
+	// 模拟 shell：校验收到的命令，回显输出并给出提示符
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := inReader.Read(buf)
+			if err != nil {
+				return
+			}
+			cmd := strings.TrimSpace(string(buf[:n]))
+			_, _ = outWriter.Write([]byte("out:" + cmd + "\nprompt# "))
+		}
+	}()
+
+	var lines []string
+	assert.NoError(t, rw.Run("show version", 5*time.Second, func(arr []string) {
+		lines = append(lines, arr...)
+	}))
+	assert.True(t, misc.HasLine(lines, "out:show version"))
+	assert.Equal(t, "prompt# ", rw.Prompt())
+
+	// ctx 版本
+	lines = nil
+	assert.NoError(t, rw.RunContext(context.Background(), "display clock", func(arr []string) {
+		lines = append(lines, arr...)
+	}))
+	assert.True(t, misc.HasLine(lines, "out:display clock"))
+
+	// 已取消的context应返回canceled错误
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := rw.RunContext(ctx, "ls", func([]string) {})
+	assert.Error(t, err)
+	assert.True(t, IsCanceled(err))
 }

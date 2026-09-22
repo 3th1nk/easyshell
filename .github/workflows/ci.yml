@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      # 依赖真实设备的测试(.env未配置时)和Windows专用测试会自动跳过
+      - name: Test
+        run: go test -race -count=1 ./...
+
+  windows-test:
+    # 只跑纯逻辑包：根包的cmd_shell测试断言依赖中文区域设置，GH runner上不稳定；
+    # 不加-race(Windows下需要mingw工具链)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Test
+        run: go test -count=1 ./core/... ./internal/... ./pkg/...

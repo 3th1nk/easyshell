@@ -5,11 +5,17 @@ import (
 	"github.com/3th1nk/easyshell/internal/misc"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"runtime"
 	"testing"
 	"time"
 )
 
+// TestCmdShell_1 Windows 专用：断言依赖 Windows ping 的输出格式(默认4次后输出统计信息)，
+// Linux/macOS 的 ping 不带 -c 时不会输出统计信息
 func TestCmdShell_1(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows only test")
+	}
 	s := NewCmdShell("ping www.baidu.com")
 
 	start := time.Now()
@@ -32,7 +38,11 @@ func TestCmdShell_1(t *testing.T) {
 	assert.True(t, misc.HasLine(out, "ping statistics") || misc.HasLine(out, "Ping 统计信息"))
 }
 
+// TestCmdShell_2 Windows 专用：使用 cmd /K 和中文 dir 输出断言
 func TestCmdShell_2(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows only test")
+	}
 	s := NewCmdShell("cmd /K")
 
 	start := time.Now()

@@ -63,7 +63,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		c, err = net.DialTimeout("tcp", cfg.Addr, cfg.Timeout)
 	}
 	if err != nil {
-		return nil, err
+		return nil, &core.Error{Op: "dial", Addr: cfg.Addr, Err: err}
 	}
 
 	client := &Client{
@@ -78,7 +78,11 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	}()
 
 	if err = client.doAuth(); err != nil {
-		return nil, err
+		// 认证失败返回auth错误，其余(超时、连接关闭等)返回read错误
+		if core.IsAuth(err) {
+			return nil, err
+		}
+		return nil, &core.Error{Op: "read", Addr: cfg.Addr, Err: err}
 	}
 	return client, err
 }
@@ -525,7 +529,7 @@ func (this *Client) doAuth() error {
 		if this.cfg.UserRegex.MatchString(prompt.String()) {
 			// 如果刚输入用户名、密码，再次读取到用户名提示符，说明用户名、密码错误
 			if enterUser || enterPass {
-				return fmt.Errorf("invalid username or password")
+				return &core.Error{Op: "auth", Addr: this.cfg.Addr, Err: fmt.Errorf("invalid username or password")}
 			}
 
 			// 输入用户名
@@ -541,7 +545,7 @@ func (this *Client) doAuth() error {
 		if this.cfg.PassRegex.MatchString(prompt.String()) {
 			// 如果刚输入密码，再次读取到密码提示符，说明密码错误
 			if enterPass {
-				return fmt.Errorf("invalid username or password")
+				return &core.Error{Op: "auth", Addr: this.cfg.Addr, Err: fmt.Errorf("invalid username or password")}
 			}
 
 			if _, err = this.Write([]byte(this.cfg.Password + "\n")); err != nil {

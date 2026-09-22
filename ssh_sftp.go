@@ -21,13 +21,15 @@ func (this *SshShell) SftpClient(opt ...sftp.ClientOption) (*sftp.Client, error)
 }
 
 func (this *SshShell) uploadFile(cli *sftp.Client, localPath, remotePath string, force bool) error {
-
-check:
-	rfi, err := cli.Stat(remotePath)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if rfi != nil {
+	// 远程路径已存在时的处理：目录则拼接文件名后重新检查；文件则按 force 决定是否覆盖
+	for {
+		rfi, err := cli.Stat(remotePath)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if rfi == nil {
+			break
+		}
 		if rfi.IsDir() {
 			if filepath.Base(localPath) == path.Base(remotePath) {
 				return &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("remote path is a directory")}
@@ -35,15 +37,15 @@ check:
 			// 远程路径必须用 path 包拼接：远程是类Unix系统，用 '/' 分隔；
 			// filepath 在 Windows 上会用 '\'，会被远程当成文件名字符
 			remotePath = path.Join(remotePath, filepath.Base(localPath))
-			goto check
+			continue
 		}
-
 		if !force {
 			return os.ErrExist
 		}
+		break
 	}
 
-	if err = cli.MkdirAll(path.Dir(remotePath)); err != nil {
+	if err := cli.MkdirAll(path.Dir(remotePath)); err != nil {
 		return err
 	}
 
@@ -110,27 +112,29 @@ func (this *SshShell) SftpUpload(localPath, remotePath string, force bool) error
 }
 
 func (this *SshShell) downFile(cli *sftp.Client, remotePath, localPath string, force bool) error {
-
-check:
-	lfi, err := os.Stat(localPath)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if lfi != nil {
+	// 本地路径已存在时的处理：目录则拼接文件名后重新检查；文件则按 force 决定是否覆盖
+	for {
+		lfi, err := os.Stat(localPath)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if lfi == nil {
+			break
+		}
 		if lfi.IsDir() {
 			if filepath.Base(localPath) == path.Base(remotePath) {
 				return &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("local path is a directory")}
 			}
 			localPath = filepath.Join(localPath, path.Base(remotePath))
-			goto check
+			continue
 		}
-
 		if !force {
 			return os.ErrExist
 		}
+		break
 	}
 
-	if err = os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
 		return err
 	}
 

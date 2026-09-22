@@ -13,6 +13,9 @@ const (
 	FlexibleOptionPromptPattern = `(?i)[\[(][a-z]+([/|][a-z\[\]]+)+[\])][?:]\s*$`
 )
 
+// flexibleOptionPromptRegex 预编译，避免拦截器每次匹配都重复编译正则
+var flexibleOptionPromptRegex = regexp.MustCompile(FlexibleOptionPromptPattern)
+
 func AlwaysYes(showOut ...bool) Interceptor {
 	showOut = append(showOut, false)
 	return Regexp(regexp.MustCompile(DefaultOptionPromptPattern), AppendLF("y"), LastLine, showOut...)
@@ -27,7 +30,7 @@ func AlwaysOption(optionIndex int, showOut ...bool) Interceptor {
 	showOut = append(showOut, false)
 	return func(str string) (bool, bool, string) {
 		str = LastLine(str)
-		if re := regexp.MustCompile(FlexibleOptionPromptPattern); re.MatchString(str) {
+		if flexibleOptionPromptRegex.MatchString(str) {
 			// 截取选项部分，并去掉前后的括号，例如 [yes/no] -> yes/no
 			if idx := strings.IndexAny(str, "[("); idx != -1 {
 				str = str[idx+1:]

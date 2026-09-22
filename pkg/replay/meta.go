@@ -63,5 +63,8 @@ func parseMetaInfo(data *os.File) ([]int, error) {
 			nBytes = append(nBytes, ns...)
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 	return nBytes, nil
 }

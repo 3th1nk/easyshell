@@ -7,6 +7,7 @@
 * 支持自定义内容拦截器，内置拦截器包括密码交互(Password)、选项交互(Yes/No)、网络设备自动翻页(More)、网络设备继续执行(Continue)
 * 支持延迟返回输出内容，可指定超过一定时间 或 内容大小 后返回
 * 支持记录原始输出内容和回放，用于调试
+* 并发安全：读取过程中可并发查询提示符；并发Read会被拒绝并返回错误
 
 ## 代码片段
 - 本地执行命令
@@ -54,6 +55,13 @@
         fmt.Println(line)
     }
 	
+    // Run = Write + ReadToEndLine，执行命令并读取输出直到提示符
+    if err := s.Run("display version", time.Minute, func(lines []string) {
+        // handle lines
+    }); err != nil {
+        return
+    }
+
     // match 'password' prompt and enter the password automatically
     s.Write("su root")
     if err := s.ReadToEndLine(time.Minute, func(lines []string) {
@@ -61,4 +69,13 @@
     }, interceptor.Password("password:", "<password>", true)); err != nil {
         return err
     }
+```
+
+- 设备测试凭据配置
+
+  真实设备的测试凭据通过环境变量或仓库根目录的 `.env` 文件注入(该文件已被.gitignore忽略)，
+  未配置时相关测试自动跳过。变量格式与清单见 `test_cred_test.go` 顶部注释：
+```
+    EASYSHELL_TEST_CISCO=admin:password@192.0.2.90
+    EASYSHELL_TEST_H3C=admin:password@192.0.2.4
 ```
