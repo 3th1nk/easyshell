@@ -155,7 +155,9 @@ func TestDevice_SshShell_Password(t *testing.T) {
 	var lines []string
 	assert.NoError(t, s.Run(ctx, "su root", func(arr []string) {
 		lines = append(lines, arr...)
-	}, interceptor.Password(core.PasswordRegex.String(), rootPwd)))
+	}, RunOptions{Interceptors: []interceptor.Interceptor{
+		interceptor.Password(core.PasswordRegex.String(), rootPwd),
+	}}))
 	assert.NoError(t, s.Run(ctx, "whoami", func(arr []string) {
 		lines = append(lines, arr...)
 	}))

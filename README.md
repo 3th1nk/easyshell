@@ -9,6 +9,7 @@
 * 延迟返回输出内容(按时间间隔或累计大小)；stderr 三种处理策略(Error/Output/Ignore)
 * 录制原始输入输出并回放(record 包，二进制帧格式，含时间戳与方向)
 * 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
+* 精简的接口参数：每次调用的可选项(提示符覆盖/拦截器)统一为 RunOptions 可变参数结构体
 * 跳板机/堡垒机：多级代理链(SshConfig.Proxy)；SSH Agent 认证(UseAgent)
 * 命令级提示符覆盖(RunPrompt)：提示符动态变化场景严格匹配；配置模式状态推断(InConfigMode)
 * 结构化日志钩子(Config.Logger *slog.Logger)：会话关键事件接入运维日志体系

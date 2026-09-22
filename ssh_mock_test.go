@@ -98,7 +98,7 @@ func TestMockSshShell_More(t *testing.T) {
 	var lines []string
 	assert.NoError(t, s.Run(ctx, "display all", func(arr []string) {
 		lines = append(lines, arr...)
-	}, interceptor.More()))
+	}, RunOptions{Interceptors: []interceptor.Interceptor{interceptor.More()}}))
 	assert.True(t, hasLine(lines, "page1"))
 	assert.True(t, hasLine(lines, "page2"))
 	assert.False(t, hasLine(lines, "More"), "More提示不应出现在输出中: %v", lines)
@@ -269,7 +269,7 @@ func TestMockSshShell_ErrorDetect(t *testing.T) {
 	}
 	defer s2.Close()
 
-	err = s2.Run(ctx, "disp lay ver", func([]string) {})
+	err = s2.Run(ctx, "disp lay ver", nil)
 	assert.Error(t, err)
 	var de *core.DeviceError
 	assert.True(t, errors.As(err, &de), "应返回DeviceError, got=%v", err)
@@ -320,7 +320,7 @@ func TestMockSshShell_RunPrompt(t *testing.T) {
 
 	// 进入配置模式：以新提示符严格匹配(默认宽松规则虽也能匹配，但这里验证指定规则的语义)
 	configPrompt := regexp.MustCompile(`<mock>\(config\)#\s*$`)
-	assert.NoError(t, s.RunPrompt(ctx, "conf t", configPrompt, nil))
+	assert.NoError(t, s.Run(ctx, "conf t", nil, RunOptions{Prompt: configPrompt}))
 	assert.True(t, s.InConfigMode())
 	assert.Equal(t, "<mock>(config)#", strings.TrimSpace(s.Prompt()))
 
@@ -332,7 +332,7 @@ func TestMockSshShell_RunPrompt(t *testing.T) {
 	assert.Equal(t, []string{"out:description test"}, lines)
 
 	// 退出配置模式
-	assert.NoError(t, s.RunPrompt(ctx, "exit", regexp.MustCompile(`<mock>#\s*$`), nil))
+	assert.NoError(t, s.Run(ctx, "exit", nil, RunOptions{Prompt: regexp.MustCompile(`<mock>#\s*$`)}))
 	assert.False(t, s.InConfigMode())
 }
 

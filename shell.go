@@ -3,9 +3,7 @@ package easyshell
 import (
 	"context"
 	"github.com/3th1nk/easyshell/v2/core"
-	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/3th1nk/easyshell/v2/record"
-	"regexp"
 )
 
 // Shell 是 CmdShell/SshShell/TelnetShell 的统一抽象，面向"命令交互"场景。
@@ -20,30 +18,19 @@ type Shell interface {
 	// WriteRaw 原样写入(不自动补充换行)，供密码输入、翻页应答等场景
 	WriteRaw(p []byte) error
 
-	// Read 读取输出；stopOnPrompt=true 时读到提示符即返回(提示符行默认不作为输出返回)
-	Read(ctx context.Context, stopOnPrompt bool, onOut func(lines []string),
-		interceptors ...interceptor.Interceptor) error
-	// ReadUntilPrompt 读取输出直到提示符
+	// ReadUntilPrompt 读取输出直到提示符(提示符行默认不作为输出返回)
 	ReadUntilPrompt(ctx context.Context, onOut func(lines []string),
-		interceptors ...interceptor.Interceptor) error
+		opts ...RunOptions) error
 	// ReadAll 读取全部输出直到流结束
 	ReadAll(ctx context.Context, onOut func(lines []string),
-		interceptors ...interceptor.Interceptor) error
+		opts ...RunOptions) error
 
 	// Run 写入命令并读取输出直到提示符，等价于 Write + ReadUntilPrompt
 	Run(ctx context.Context, cmd string, onOut func(lines []string),
-		interceptors ...interceptor.Interceptor) error
+		opts ...RunOptions) error
 	// RunAll 写入命令并读取全部输出直到流结束，等价于 Write + ReadAll
 	RunAll(ctx context.Context, cmd string, onOut func(lines []string),
-		interceptors ...interceptor.Interceptor) error
-	// RunPrompt 写入命令并以指定的提示符规则判定命令结束(严格模式)。
-	//
-	//	适用于执行后提示符会变化的场景(网络设备进入/退出配置模式、主机 su/sudo、
-	//	进入子命令环境等)：指定 prompt 后本次读取仅以该规则匹配结束——
-	//	默认宽松规则不参与，避免其误匹配输出内容，也避免变化后的提示符匹配不到而超时。
-	//	命令结束后通过 Prompt() 获取新的提示符。
-	RunPrompt(ctx context.Context, cmd string, prompt *regexp.Regexp, onOut func(lines []string),
-		interceptors ...interceptor.Interceptor) error
+		opts ...RunOptions) error
 
 	// Prompt 返回最近一次匹配到的提示符(读取过程中可并发调用)
 	Prompt() string
@@ -68,29 +55,21 @@ func (b shellBase) Write(cmd string) error { return b.rw.Write(cmd) }
 func (b shellBase) WriteRaw(p []byte) error {
 	return b.rw.WriteRaw(p)
 }
-func (b shellBase) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines []string),
-	interceptors ...interceptor.Interceptor) error {
-	return b.rw.Read(ctx, stopOnPrompt, onOut, interceptors...)
-}
 func (b shellBase) ReadUntilPrompt(ctx context.Context, onOut func(lines []string),
-	interceptors ...interceptor.Interceptor) error {
-	return b.rw.ReadUntilPrompt(ctx, onOut, interceptors...)
+	opts ...RunOptions) error {
+	return b.rw.ReadUntilPrompt(ctx, onOut, opts...)
 }
 func (b shellBase) ReadAll(ctx context.Context, onOut func(lines []string),
-	interceptors ...interceptor.Interceptor) error {
-	return b.rw.ReadAll(ctx, onOut, interceptors...)
+	opts ...RunOptions) error {
+	return b.rw.ReadAll(ctx, onOut, opts...)
 }
 func (b shellBase) Run(ctx context.Context, cmd string, onOut func(lines []string),
-	interceptors ...interceptor.Interceptor) error {
-	return b.rw.Run(ctx, cmd, onOut, interceptors...)
+	opts ...RunOptions) error {
+	return b.rw.Run(ctx, cmd, onOut, opts...)
 }
 func (b shellBase) RunAll(ctx context.Context, cmd string, onOut func(lines []string),
-	interceptors ...interceptor.Interceptor) error {
-	return b.rw.RunAll(ctx, cmd, onOut, interceptors...)
-}
-func (b shellBase) RunPrompt(ctx context.Context, cmd string, prompt *regexp.Regexp, onOut func(lines []string),
-	interceptors ...interceptor.Interceptor) error {
-	return b.rw.RunPrompt(ctx, cmd, prompt, onOut, interceptors...)
+	opts ...RunOptions) error {
+	return b.rw.RunAll(ctx, cmd, onOut, opts...)
 }
 func (b shellBase) Prompt() string         { return b.rw.Prompt() }
 func (b shellBase) IsPrompt(s string) bool { return b.rw.IsPrompt(s) }

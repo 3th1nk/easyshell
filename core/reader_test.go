@@ -249,7 +249,7 @@ func TestReader_Interceptor(t *testing.T) {
 	var lines []string
 	assert.NoError(t, r.Run(context.Background(), "display all", func(arr []string) {
 		lines = append(lines, arr...)
-	}, interceptor.More()))
+	}, RunOptions{Interceptors: []interceptor.Interceptor{interceptor.More()}}))
 	assert.Equal(t, 2, pages, "应自动应答2次翻页")
 	t.Logf("lines=%q", lines)
 	assert.True(t, hasLine(lines, "page1"))
@@ -389,18 +389,18 @@ func TestReader_RunPrompt(t *testing.T) {
 	defer cancel()
 
 	// 进入配置模式：指定新提示符(严格匹配)
-	assert.NoError(t, r.RunPrompt(ctx, "conf t", regexp.MustCompile(`\(config\)#\s*$`), nil))
+	assert.NoError(t, r.Run(ctx, "conf t", nil, RunOptions{Prompt: regexp.MustCompile(`\(config\)#\s*$`)}))
 	assert.True(t, r.InConfigMode(), "应识别为配置模式")
 
 	// 配置模式下的输出含 "Description:" 行——宽松规则会误匹配，严格指定提示符则不会
 	var lines []string
-	assert.NoError(t, r.RunPrompt(ctx, "description test", regexp.MustCompile(`\(config\)#\s*$`), func(arr []string) {
+	assert.NoError(t, r.Run(ctx, "description test", func(arr []string) {
 		lines = append(lines, arr...)
-	}))
+	}, RunOptions{Prompt: regexp.MustCompile(`\(config\)#\s*$`)}))
 	assert.True(t, hasLine(lines, "Description: this line would fool loose rule"))
 
 	// 退出配置模式
-	assert.NoError(t, r.RunPrompt(ctx, "exit", regexp.MustCompile(`<SW01>\s*$`), nil))
+	assert.NoError(t, r.Run(ctx, "exit", nil, RunOptions{Prompt: regexp.MustCompile(`<SW01>\s*$`)}))
 	assert.False(t, r.InConfigMode())
 }
 

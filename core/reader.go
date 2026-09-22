@@ -165,38 +165,33 @@ func (r *Reader) isPrompt(s string, promptOverride *regexp.Regexp) bool {
 	return matched
 }
 
+// firstOptOf 取第一个可选项(最多一个，多余忽略)
+func firstOptOf(opts []RunOptions) RunOptions {
+	if len(opts) > 0 {
+		return opts[0]
+	}
+	return RunOptions{}
+}
+
 // ReadUntilPrompt 读取输出直到提示符(等价于 Read(ctx, true, ...))
-func (r *Reader) ReadUntilPrompt(ctx context.Context, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
-	return r.Read(ctx, true, onOut, interceptors...)
+func (r *Reader) ReadUntilPrompt(ctx context.Context, onOut func(lines []string), opts ...RunOptions) error {
+	return r.read(ctx, true, firstOptOf(opts).Prompt, onOut, firstOptOf(opts).Interceptors)
 }
 
 // ReadAll 读取全部输出直到流结束(等价于 Read(ctx, false, ...))
-func (r *Reader) ReadAll(ctx context.Context, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
-	return r.Read(ctx, false, onOut, interceptors...)
+func (r *Reader) ReadAll(ctx context.Context, onOut func(lines []string), opts ...RunOptions) error {
+	return r.read(ctx, false, firstOptOf(opts).Prompt, onOut, firstOptOf(opts).Interceptors)
 }
 
-// Run 写入命令并读取输出直到提示符，等价于 Write + ReadUntilPrompt
-func (r *Reader) Run(ctx context.Context, cmd string, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
-	if err := r.Write(cmd); err != nil {
-		return err
-	}
-	return r.ReadUntilPrompt(ctx, onOut, interceptors...)
-}
-
-// RunPrompt 写入命令并以指定的提示符规则判定命令结束。
+// Run 写入命令并读取输出直到提示符，等价于 Write + ReadUntilPrompt。
 //
-//	适用于执行后提示符会变化的场景(网络设备进入/退出配置模式、主机 su/sudo、
-//	进入子命令环境等)：指定 prompt 后本次读取仅以该规则匹配结束——
-//	默认宽松规则不参与，避免其误匹配输出内容，也避免变化后的提示符匹配不到而超时。
-//	命令结束后通过 Prompt() 获取新的提示符。
-func (r *Reader) RunPrompt(ctx context.Context, cmd string, prompt *regexp.Regexp, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
-	if prompt == nil {
-		return &Error{Op: OpRead, Err: errors.New("prompt is nil (use Run for default prompt matching)")}
-	}
+//	提示符会变化的场景(进入配置模式、su/sudo 等)使用 RunOptions.Prompt 指定本次命令的结束提示符。
+func (r *Reader) Run(ctx context.Context, cmd string, onOut func(lines []string), opts ...RunOptions) error {
 	if err := r.Write(cmd); err != nil {
 		return err
 	}
-	return r.read(ctx, true, prompt, onOut, interceptors...)
+	opt := firstOptOf(opts)
+	return r.read(ctx, true, opt.Prompt, onOut, opt.Interceptors)
 }
 
 // InConfigMode 基于最近匹配的提示符推断是否处于配置模式(启发式)：
@@ -223,15 +218,17 @@ func (r *Reader) InConfigMode() bool {
 var configModeBracketRegex = regexp.MustCompile(`^\[[^@~\s\]]{1,64}(-[^@~\s\]]+)*\]`)
 
 // RunAll 写入命令并读取全部输出直到流结束，等价于 Write + ReadAll
-func (r *Reader) RunAll(ctx context.Context, cmd string, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+func (r *Reader) RunAll(ctx context.Context, cmd string, onOut func(lines []string), opts ...RunOptions) error {
 	if err := r.Write(cmd); err != nil {
 		return err
 	}
-	return r.ReadAll(ctx, onOut, interceptors...)
+	opt := firstOptOf(opts)
+	return r.read(ctx, false, opt.Prompt, onOut, opt.Interceptors)
 }
 
-func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
-	return r.read(ctx, stopOnPrompt, nil, onOut, interceptors...)
+func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines []string), opts ...RunOptions) (err error) {
+	opt := firstOptOf(opts)
+	return r.read(ctx, stopOnPrompt, opt.Prompt, onOut, opt.Interceptors)
 }
 
 // logf 日志钩子(nil 安全)，keyValues 为 slog 属性对
@@ -242,7 +239,7 @@ func (r *Reader) logf(level slog.Level, msg string, keyValues ...any) {
 }
 
 // read 读取输出；promptOverride 非 nil 时仅以该规则判定命令结束(严格模式，默认规则不参与)
-func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *regexp.Regexp, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *regexp.Regexp, onOut func(lines []string), interceptors []interceptor.Interceptor) (err error) {
 	// 单读者守卫：并发 Read 会互相争抢输出导致串流错乱
 	if !r.readMu.TryLock() {
 		return &Error{Op: OpRead, Err: ErrConcurrentRead}

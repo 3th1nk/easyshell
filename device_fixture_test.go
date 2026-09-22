@@ -83,7 +83,7 @@ func TestUnit_ReplayDeviceFixture(t *testing.T) {
 	var lines []string
 	assert.NoError(t, replay.Run(ctx, "display saved-configuration", func(arr []string) {
 		lines = append(lines, arr...)
-	}, interceptor.More()))
+	}, RunOptions{Interceptors: []interceptor.Interceptor{interceptor.More()}}))
 
 	// 与真机直连行为一致的断言
 	//	注：快速重放下命令回显可能被提示符命中后的 pending 清除竞态擦掉(真机无此问题，设备此时等待输入)，故不断言回显

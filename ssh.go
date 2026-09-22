@@ -327,7 +327,7 @@ func NewSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error)
 	var headLine []string
 	_ = r.ReadUntilPrompt(ctx, func(lines []string) {
 		headLine = append(headLine, lines...)
-	}, interceptor.AlwaysNo())
+	}, RunOptions{Interceptors: []interceptor.Interceptor{interceptor.AlwaysNo()}})
 	headLine = trimEmptyLines(headLine)
 
 	return &SshShell{shellBase: shellBase{rw: r}, client: client, session: session, headLine: headLine}, nil
