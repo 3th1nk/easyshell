@@ -1,6 +1,6 @@
-module github.com/3th1nk/easyshell
+module github.com/3th1nk/easyshell/v2
 
-go 1.18
+go 1.21
 
 require (
 	github.com/3th1nk/easygo v0.0.0-20260922022249-eae70c0e7677
