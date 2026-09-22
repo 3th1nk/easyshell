@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, v2]
   pull_request:
 
 jobs:
@@ -41,4 +41,4 @@ jobs:
           go-version: 'stable'
 
       - name: Test
-        run: go test -count=1 ./core/... ./internal/... ./pkg/...
+        run: go test -count=1 ./core/... ./internal/... ./filter/... ./interceptor/... ./record/... ./telnet/...
