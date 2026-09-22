@@ -288,7 +288,7 @@ func NewSshShell(cfg SshConfig) (*SshShell, error) {
 		return nil, err
 	}
 
-	shell, err := NewSshShellFromClient(client, cfg)
+	shell, err := newSshShellFromClient(client, cfg)
 	if err != nil {
 		closeAll()
 		if rec != nil {
@@ -302,8 +302,8 @@ func NewSshShell(cfg SshConfig) (*SshShell, error) {
 	return shell, nil
 }
 
-// NewSshShellFromClient 基于已有的 SSH 连接创建 Shell(调用方自行管理连接的关闭)。
-func NewSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error) {
+// newSshShellFromClient 基于已有的 SSH 连接创建 Shell。
+func newSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error) {
 	cfg = cfg.normalize()
 
 	addr := client.RemoteAddr().String()

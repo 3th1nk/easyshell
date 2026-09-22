@@ -49,7 +49,7 @@ func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
 		return nil, err
 	}
 
-	shell, err := NewTelnetShellFromClient(client, cfg)
+	shell, err := newTelnetShellFromClient(client, cfg)
 	if err != nil {
 		_ = client.Close()
 		if rec != nil {
@@ -63,7 +63,7 @@ func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
 }
 
 // NewTelnetShellFromClient 基于已有的 telnet 连接创建 Shell(调用方自行管理连接的关闭)。
-func NewTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetShell, error) {
+func newTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetShell, error) {
 	// 保活动作：telnet NOP 命令
 	if cfg.KeepAlive != nil && cfg.KeepAlive.Interval > 0 {
 		send := cfg.KeepAlive.Send
