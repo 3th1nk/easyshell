@@ -385,6 +385,7 @@ func TestMockSshShell_ProxyChain(t *testing.T) {
 // TestMockSshShell_Scp 离线验证 SCP 上传/下载(mock 协议端)与进度回调
 func TestMockSshShell_Scp(t *testing.T) {
 	srv := testsrv.NewSshServer(t)
+	srv.RootDir = t.TempDir() // mock sink 存储目录
 	rootDir := t.TempDir()
 	srv.RootDir = rootDir
 
