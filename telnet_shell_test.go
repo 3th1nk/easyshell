@@ -19,7 +19,7 @@ var (
 
 func TestTelnetShell_NetDevice_Cisco(t *testing.T) {
 	if netCredCiscoTelnet == nil {
-		t.Skip("set EASYSHELL_TEST_TELNET_CISCO_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_CISCO to run this test")
 	}
 	s, err := NewTelnetShell(&TelnetShellConfig{
 		Credential: netCredCiscoTelnet,
@@ -65,7 +65,7 @@ func TestTelnetShell_NetDevice_Cisco(t *testing.T) {
 
 func TestTelnetShell_NetDevice_H3C(t *testing.T) {
 	if netCredH3CTelnet == nil {
-		t.Skip("set EASYSHELL_TEST_TELNET_H3C_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_H3C to run this test")
 	}
 	s, err := NewTelnetShell(&TelnetShellConfig{
 		Credential: netCredH3CTelnet,

@@ -10,6 +10,7 @@ import (
 	"github.com/3th1nk/easyshell/pkg/replay"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"os"
 	"testing"
 	"time"
 )
@@ -25,7 +26,7 @@ var (
 
 func TestSshShell_Term(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -51,7 +52,7 @@ func TestSshShell_Term(t *testing.T) {
 
 func TestSshShell_Ping(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -97,7 +98,7 @@ func TestSshShell_Ping(t *testing.T) {
 
 func TestSshShell_PingLazyInterval(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -144,7 +145,7 @@ func TestSshShell_PingLazyInterval(t *testing.T) {
 
 func TestSshShell_PingLazySize(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -191,7 +192,7 @@ func TestSshShell_PingLazySize(t *testing.T) {
 
 func TestSshShell_PingLazy(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -238,7 +239,7 @@ func TestSshShell_PingLazy(t *testing.T) {
 
 func TestSshShell_Cancel(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -275,7 +276,7 @@ func TestSshShell_Cancel(t *testing.T) {
 
 func TestSshShell_ReadInput(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: hostCred,
@@ -300,9 +301,9 @@ func TestSshShell_ReadInput(t *testing.T) {
 }
 
 func TestSshShell_Sudo(t *testing.T) {
-	rootPwd := envValue(envPrefixSsh, "LINUX_ROOT_PASSWORD")
+	rootPwd := os.Getenv("EASYSHELL_TEST_LINUX_ROOT_PASSWORD")
 	if hostCred == nil || rootPwd == "" {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD and EASYSHELL_TEST_SSH_LINUX_ROOT_PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX and EASYSHELL_TEST_LINUX_ROOT_PASSWORD to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Config: core.Config{
@@ -349,7 +350,7 @@ func TestSshShell_Sudo(t *testing.T) {
 
 func TestSshShell_HostScript_Err(t *testing.T) {
 	if hostCred == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_LINUX_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Config: core.Config{
@@ -389,7 +390,7 @@ func TestSshShell_HostScript_Err(t *testing.T) {
 
 func TestSshShell_NetDevice_Cisco(t *testing.T) {
 	if netCredCisco == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_CISCO_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_CISCO to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredCisco,
@@ -435,7 +436,7 @@ func TestSshShell_NetDevice_Cisco(t *testing.T) {
 
 func TestSshShell_NetDevice_Array(t *testing.T) {
 	if netCredArray == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_ARRAY_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_ARRAY to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Credential: netCredArray,
@@ -473,7 +474,7 @@ func TestSshShell_NetDevice_Array(t *testing.T) {
 
 func TestSshShell_NetDevice_H3C(t *testing.T) {
 	if netCredH3C == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_H3C_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_H3C to run this test")
 	}
 	ro := replay.NewWriter("./pkg/replay/testdata/WorkSW03_ssh.txt")
 	defer func() {
@@ -523,7 +524,7 @@ func TestSshShell_NetDevice_H3C(t *testing.T) {
 
 func TestSshShell_NetDevice_Hw(t *testing.T) {
 	if netCredHw == nil {
-		t.Skip("set EASYSHELL_TEST_SSH_HW_HOST/PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_HW to run this test")
 	}
 	ro := replay.NewWriter("./pkg/replay/testdata/Huawei_ssh.txt")
 	defer func() {
