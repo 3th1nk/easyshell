@@ -11,21 +11,16 @@ import (
 	"time"
 )
 
+// 设备凭据从环境变量注入(见 test_cred_test.go 顶部的环境变量说明)，未设置时相关测试跳过
 var (
-	netCredCiscoTelnet = &TelnetCredential{
-		Host:     "192.0.2.12",
-		Port:     23,
-		User:     "admin",
-		Password: "<password>",
-	}
-	netCredH3CTelnet = &TelnetCredential{
-		Host:     "192.0.2.13",
-		Port:     23,
-		Password: "<password>",
-	}
+	netCredCiscoTelnet = telnetCredFromEnv("CISCO")
+	netCredH3CTelnet   = telnetCredFromEnv("H3C")
 )
 
 func TestTelnetShell_NetDevice_Cisco(t *testing.T) {
+	if netCredCiscoTelnet == nil {
+		t.Skip("set EASYSHELL_TEST_TELNET_CISCO_HOST/PASSWORD to run this test")
+	}
 	s, err := NewTelnetShell(&TelnetShellConfig{
 		Credential: netCredCiscoTelnet,
 		Config: core.Config{
@@ -69,6 +64,9 @@ func TestTelnetShell_NetDevice_Cisco(t *testing.T) {
 }
 
 func TestTelnetShell_NetDevice_H3C(t *testing.T) {
+	if netCredH3CTelnet == nil {
+		t.Skip("set EASYSHELL_TEST_TELNET_H3C_HOST/PASSWORD to run this test")
+	}
 	s, err := NewTelnetShell(&TelnetShellConfig{
 		Credential: netCredH3CTelnet,
 		Config: core.Config{

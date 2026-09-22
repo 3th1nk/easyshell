@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,11 +17,28 @@ var (
 )
 
 func TestMain(m *testing.M) {
+	// 设备凭据从环境变量注入，未设置时跳过依赖真实设备的用例
+	host := strings.TrimSpace(os.Getenv("EASYSHELL_TEST_TELNET_CISCO_HOST"))
+	password := strings.TrimSpace(os.Getenv("EASYSHELL_TEST_TELNET_CISCO_PASSWORD"))
+	if host == "" || password == "" {
+		fmt.Println("skip device tests: set EASYSHELL_TEST_TELNET_CISCO_HOST/PASSWORD to run")
+		client = nil
+		m.Run()
+		return
+	}
+
+	port := 23
+	if v := strings.TrimSpace(os.Getenv("EASYSHELL_TEST_TELNET_CISCO_PORT")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			port = n
+		}
+	}
+
 	var err error
 	client, err = NewClient(&ClientConfig{
-		Addr:     "192.0.2.12:23",
-		User:     "admin",
-		Password: "<password>",
+		Addr:     fmt.Sprintf("%s:%d", host, port),
+		User:     strings.TrimSpace(os.Getenv("EASYSHELL_TEST_TELNET_CISCO_USER")),
+		Password: password,
 		Timeout:  5 * time.Second,
 	})
 	if err != nil {
