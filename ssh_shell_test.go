@@ -1,6 +1,7 @@
 package easyshell
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/3th1nk/easygo/util"
@@ -520,6 +521,44 @@ func TestSshShell_NetDevice_H3C(t *testing.T) {
 		}
 		cancel()
 	}
+}
+
+// TestSshShell_NetDevice_More 验证获取长配置时More翻页提示被默认拦截器自动处理：
+//
+//	1、终端高度调小使翻页更频繁，原始输出(RawOut)中应出现 ---- More ----
+//	2、过滤后的输出中不应残留More提示(拦截器自动答复空格并丢弃提示行)
+//	3、配置读取完整，以 return 结尾
+func TestSshShell_NetDevice_More(t *testing.T) {
+	if netCredH3C == nil {
+		t.Skip("set EASYSHELL_TEST_H3C to run this test")
+	}
+
+	var rawOut bytes.Buffer
+	s, err := NewSshShell(&SshShellConfig{
+		Credential: netCredH3C,
+		Config: core.Config{
+			AutoPrompt: true,
+			RawOut:     &rawOut,
+		},
+		TermHeight: 24,
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	assert.NoError(t, s.Write("display saved-configuration"))
+	var out []string
+	assert.NoError(t, s.ReadToEndLine(time.Minute, func(lines []string) {
+		out = append(out, lines...)
+	}))
+
+	assert.True(t, bytes.Contains(rawOut.Bytes(), []byte("More")), "原始输出中应出现More翻页提示")
+	assert.False(t, misc.HasLine(out, "---- More"), "过滤后的输出中不应残留More提示")
+
+	out = misc.TrimEmptyLine(out)
+	assert.Greater(t, len(out), 100, "配置行数过少，翻页可能未按预期工作")
+	assert.Equal(t, "return", out[len(out)-1], "配置应以return结尾")
 }
 
 func TestSshShell_NetDevice_Hw(t *testing.T) {
