@@ -3,7 +3,7 @@ module github.com/3th1nk/easyshell
 go 1.18
 
 require (
-	github.com/3th1nk/easygo v0.0.0-20240322094335-e50112c85cc0
+	github.com/3th1nk/easygo v0.0.0-20260922022249-eae70c0e7677
 	github.com/pkg/sftp v1.13.6
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.22.0
