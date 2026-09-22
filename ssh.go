@@ -7,6 +7,7 @@ import (
 	"github.com/3th1nk/easygo/util/arrUtil"
 	"github.com/3th1nk/easyshell/v2/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
+	"github.com/3th1nk/easyshell/v2/record"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -55,6 +56,8 @@ type SshConfig struct {
 	Credential SshCredential
 	// Proxy 跳板机(堡垒机)配置，nil 时直连
 	Proxy *ProxyConfig
+	// Record 会话录制配置，nil 时不录制
+	Record *RecordConfig
 	// Echo 模拟终端回显，默认 false；部分网络设备上无效(总是回显)
 	Echo bool
 	// Term 模拟终端类型，默认 VT100
@@ -257,18 +260,33 @@ func cfgOf(cred SshCredential) ssh.Config {
 //
 //	登录横幅(欢迎信息、密码过期提示等)会被自动消费，通过 HeadLine() 获取。
 func NewSshShell(cfg SshConfig) (*SshShell, error) {
+	rec, err := wireRecord(cfg.Record, &cfg.Config, record.Meta{
+		Host: cfg.Credential.Host, Port: util.IfEmptyInt(cfg.Credential.Port, 22),
+		Protocol: "ssh", User: cfg.Credential.User,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	client, closeAll, err := dialSshChain(cfg.Credential, cfg.Proxy)
 	if err != nil {
+		if rec != nil {
+			_ = rec.Close()
+		}
 		return nil, err
 	}
 
 	shell, err := NewSshShellFromClient(client, cfg)
 	if err != nil {
 		closeAll()
+		if rec != nil {
+			_ = rec.Close()
+		}
 		return nil, err
 	}
 	shell.ownClient = true
 	shell.closeAll = closeAll
+	shell.recorder = rec
 	return shell, nil
 }
 

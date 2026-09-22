@@ -3,6 +3,7 @@ package easyshell
 import (
 	"context"
 	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/record"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"os/exec"
 	"regexp"
@@ -23,6 +24,8 @@ type CmdConfig struct {
 	Env []string
 	// Prepare 命令启动前的自定义回调(可修改 exec.Cmd)
 	Prepare func(c *exec.Cmd)
+	// Record 会话录制配置，nil 时不录制
+	Record *RecordConfig
 }
 
 // NewCmdShell 创建本地命令 Shell。
@@ -53,6 +56,11 @@ func NewCmdShell(ctx context.Context, cfg CmdConfig) (*CmdShell, error) {
 		cfg.Prepare(cmd)
 	}
 
+	rec, err := wireRecord(cfg.Record, &cfg.Config, record.Meta{Protocol: "cmd"})
+	if err != nil {
+		return nil, err
+	}
+
 	in, _ := cmd.StdinPipe()
 	out, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
@@ -68,7 +76,7 @@ func NewCmdShell(ctx context.Context, cfg CmdConfig) (*CmdShell, error) {
 	}
 
 	return &CmdShell{
-		shellBase: shellBase{rw: core.NewReader(in, out, stderr, cfg.Config)},
+		shellBase: shellBase{rw: core.NewReader(in, out, stderr, cfg.Config), recorder: rec},
 		c:         cmd,
 	}, nil
 }

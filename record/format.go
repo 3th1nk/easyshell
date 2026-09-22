@@ -10,10 +10,10 @@ import (
 
 // 录制文件格式(全部小端)：
 //
-//	文件头(固定64字节)：
+//	文件头(默认128字节，HeaderSize字段声明实际大小)：
 //	  0x00  6B  Magic "ESHREC"
 //	  0x06  2B  Version(当前=1)
-//	  0x08  4B  HeaderSize(=64，含元数据区；向后兼容扩展)
+//	  0x08  4B  HeaderSize(含元数据区；向后兼容扩展)
 //	  0x0C  4B  Flags(bit0=包含输入方向帧)
 //	  0x10  8B  StartedAt(Unix 微秒，UTC)
 //	  0x18  8B  DurationMicros(录制中为0，Close 时回写)
@@ -30,7 +30,7 @@ import (
 const (
 	magic     = "ESHREC"
 	version   = uint16(1)
-	headerLen = 64
+	headerLen = 128
 	frameLen  = 16
 
 	metaAreaLen = headerLen - 0x20

@@ -28,7 +28,7 @@ func TestWriter_HeaderGolden(t *testing.T) {
 	head := sk.Bytes()[:64]
 	assert.Equal(t, "ESHREC", string(head[0x00:0x06]))
 	assert.Equal(t, uint16(1), binary.LittleEndian.Uint16(head[0x06:]))
-	assert.Equal(t, uint32(64), binary.LittleEndian.Uint32(head[0x08:]))
+	assert.Equal(t, uint32(128), binary.LittleEndian.Uint32(head[0x08:]))
 	assert.Equal(t, uint32(0), binary.LittleEndian.Uint32(head[0x0C:]), "flags应为0(未开输入录制)")
 	assert.Equal(t, int64(1700000000000000), int64(binary.LittleEndian.Uint64(head[0x10:])))
 	// TLV: host/port/protocol/user/comment

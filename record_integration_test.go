@@ -8,6 +8,8 @@ import (
 	"github.com/3th1nk/easyshell/v2/record"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -108,3 +110,48 @@ func (r *recBuffer) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (r *recBuffer) bytes() []byte { return r.data }
+
+// TestMockSshShell_RecordSugar 验证 Record 配置糖：填路径即可完成录制(元数据自动填充、随Close收尾)
+func TestMockSshShell_RecordSugar(t *testing.T) {
+	srv := testsrv.NewSshServer(t)
+
+	fixture := filepath.Join(t.TempDir(), "rec", "session.eshrec")
+	s, err := NewSshShell(SshConfig{
+		Credential: SshCredential{Host: hostOf(srv.Addr), Port: portOf(srv.Addr), User: srv.User, Password: srv.Password, Timeout: 3 * time.Second},
+		Record:     &RecordConfig{Path: fixture, CaptureInput: true, Comment: "sugar test"},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	assert.NoError(t, s.Run(ctx, "show version", func([]string) {}))
+	assert.NoError(t, s.Close()) // Close 应自动收尾录制
+
+	// 文件存在且内容完整(元数据自动填充 + 命令输出帧)
+	player, err := record.Open(fixture)
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer player.Close()
+	meta := player.Meta()
+	assert.Equal(t, "ssh", meta.Protocol)
+	assert.Equal(t, srv.User, meta.User)
+	assert.Equal(t, "sugar test", meta.Comment)
+	assert.Equal(t, hostOf(srv.Addr), meta.Host)
+
+	var hasOut bool
+	for _, f := range player.Frames() {
+		if f.Dir == record.DirOut && bytes.Contains(f.Payload, []byte("out:show version")) {
+			hasOut = true
+		}
+	}
+	assert.True(t, hasOut, "录制应包含命令输出帧")
+
+	// DumpAsciinema 可直接导出
+	f, _ := os.Open(fixture)
+	var cast bytes.Buffer
+	assert.NoError(t, record.DumpAsciinema(f, &cast))
+	_ = f.Close()
+}

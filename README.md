@@ -124,15 +124,18 @@ go get github.com/3th1nk/easyshell/v2
 
 - 录制与回放
 ```go
-    rec, _ := record.NewFileWriter("session.eshrec", record.Meta{Host: host, Protocol: "ssh"},
-        record.Options{CaptureInput: true})
+    // 方式一(推荐)：Record 配置——填路径即可，元数据自动填充、随 Close 自动收尾
     s, _ := easyshell.NewSshShell(easyshell.SshConfig{
         Credential: cred,
-        Config:     easyshell.Config{RawOut: rec, RawIn: rec.Input()},
+        Record:     &easyshell.RecordConfig{Path: "session.eshrec", CaptureInput: true},
     })
     // ... 执行命令 ...
     s.Close()
-    rec.Close()
+
+    // 方式二(高级)：record.Writer 手动接入 RawOut/RawIn，可实现自定义捕获管道
+    rec, _ := record.NewFileWriter("session.eshrec",
+        record.Meta{Host: host, Protocol: "ssh"}, record.Options{CaptureInput: true})
+    _ = easyshell.Config{RawOut: rec, RawIn: rec.Input()}
 
     // 回放(按时序/倍速)，或 AsReader 接 core.Reader 做交互式重放
     player, _ := record.Open("session.eshrec")

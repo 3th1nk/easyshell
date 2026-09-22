@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/record"
 	"github.com/3th1nk/easyshell/v2/telnet"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ type TelnetConfig struct {
 	Config
 	// Credential Telnet 登录凭证
 	Credential TelnetCredential
+	// Record 会话录制配置，nil 时不录制
+	Record *RecordConfig
 	// Echo 是否允许回显(取决于设备是否支持)，部分网络设备上无效(总是回显)
 	Echo bool
 	// SuppressGA 是否抑制 "go ahead" 命令
@@ -23,6 +26,14 @@ type TelnetConfig struct {
 
 // NewTelnetShell 创建 Telnet Shell 并完成登录。
 func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
+	rec, err := wireRecord(cfg.Record, &cfg.Config, record.Meta{
+		Host: cfg.Credential.Host, Port: util.IfEmptyInt(cfg.Credential.Port, 23),
+		Protocol: "telnet", User: cfg.Credential.User,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	client, err := telnet.NewClient(telnet.Config{
 		Addr:       fmt.Sprintf("%s:%d", cfg.Credential.Host, util.IfEmptyInt(cfg.Credential.Port, 23)),
 		User:       cfg.Credential.User,
@@ -32,15 +43,22 @@ func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
 		SuppressGA: cfg.SuppressGA,
 	})
 	if err != nil {
+		if rec != nil {
+			_ = rec.Close()
+		}
 		return nil, err
 	}
 
 	shell, err := NewTelnetShellFromClient(client, cfg)
 	if err != nil {
 		_ = client.Close()
+		if rec != nil {
+			_ = rec.Close()
+		}
 		return nil, err
 	}
 	shell.ownClient = true
+	shell.recorder = rec
 	return shell, nil
 }
 

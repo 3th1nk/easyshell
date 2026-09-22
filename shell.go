@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/3th1nk/easyshell/v2/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
+	"github.com/3th1nk/easyshell/v2/record"
 	"regexp"
 )
 
@@ -58,7 +59,10 @@ type Shell interface {
 
 // shellBase 非导出委托层：三个 Shell 实现共用，避免样板代码，
 // 同时不把 core.Reader 暴露到公共 API。
-type shellBase struct{ rw *core.Reader }
+type shellBase struct {
+	rw       *core.Reader
+	recorder *record.Writer // 会话录制器(配置了 Record 时非nil，随Close自动收尾)
+}
 
 func (b shellBase) Write(cmd string) error { return b.rw.Write(cmd) }
 func (b shellBase) WriteRaw(p []byte) error {
