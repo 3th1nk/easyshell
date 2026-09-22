@@ -14,7 +14,9 @@ import (
 //	EASYSHELL_TEST_H3C                      H3C网络设备，SSH、Telnet测试共用
 //	EASYSHELL_TEST_HW                       华为网络设备，SSH测试
 //
-//	示例: export EASYSHELL_TEST_H3C=admin:passw0rd@192.0.2.3
+//	凭据也可以配置在仓库根目录的 .env 文件中(已被.gitignore忽略，优先级低于系统环境变量)：
+//
+//	EASYSHELL_TEST_H3C=admin:passw0rd@192.0.2.3
 func sshCredFromEnv(name string, insecure bool) *SshCredential {
 	c := testutil.FromEnv(name)
 	if c == nil {

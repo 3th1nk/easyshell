@@ -1,3 +1,6 @@
 .idea
 **/.DS_Store
 **/testdata
+
+# 设备测试凭据(勿提交)
+.env

@@ -6,11 +6,11 @@ import (
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/core"
 	"github.com/3th1nk/easyshell/internal/misc"
+	"github.com/3th1nk/easyshell/internal/testutil"
 	"github.com/3th1nk/easyshell/pkg/interceptor"
 	"github.com/3th1nk/easyshell/pkg/replay"
 	"github.com/stretchr/testify/assert"
 	"io"
-	"os"
 	"testing"
 	"time"
 )
@@ -301,9 +301,9 @@ func TestSshShell_ReadInput(t *testing.T) {
 }
 
 func TestSshShell_Sudo(t *testing.T) {
-	rootPwd := os.Getenv("EASYSHELL_TEST_LINUX_ROOT_PASSWORD")
+	rootPwd := testutil.Getenv("LINUX_ROOT_PASSWORD")
 	if hostCred == nil || rootPwd == "" {
-		t.Skip("set EASYSHELL_TEST_LINUX and EASYSHELL_TEST_LINUX_ROOT_PASSWORD to run this test")
+		t.Skip("set EASYSHELL_TEST_LINUX and EASYSHELL_TEST_LINUX_ROOT_PASSWORD (env or .env) to run this test")
 	}
 	s, err := NewSshShell(&SshShellConfig{
 		Config: core.Config{

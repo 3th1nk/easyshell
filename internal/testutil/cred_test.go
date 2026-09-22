@@ -29,3 +29,21 @@ func TestFromEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEnvFile(t *testing.T) {
+	content := `
+# 注释行
+EASYSHELL_TEST_H3C=admin:Geesunn@123@192.168.2.3
+
+# 引号、空白
+EASYSHELL_TEST_LINUX = "user:pa ss@192.0.2.10:22"
+EASYSHELL_TEST_HW='admin:pwd@192.0.2.20'
+无效行
+`
+	vars := parseEnvFile([]byte(content))
+	assert.Equal(t, map[string]string{
+		"EASYSHELL_TEST_H3C":   "admin:Geesunn@123@192.168.2.3",
+		"EASYSHELL_TEST_LINUX": "user:pa ss@192.0.2.10:22",
+		"EASYSHELL_TEST_HW":    "admin:pwd@192.0.2.20",
+	}, vars)
+}

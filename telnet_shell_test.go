@@ -71,7 +71,8 @@ func TestTelnetShell_NetDevice_H3C(t *testing.T) {
 		Credential: netCredH3CTelnet,
 		Config: core.Config{
 			PromptRegex: []*regexp.Regexp{
-				regexp.MustCompile(`WorkSW03[\s\S]*[$#%>\]:]+\s*$`),
+				// H3C用户视图提示符 <hostname>，主机名因设备而异，这里用通用规则
+				regexp.MustCompile(`<\S+>\s*$`),
 			},
 			ReadConfirmWait: 500 * time.Millisecond,
 		},
