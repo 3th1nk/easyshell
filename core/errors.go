@@ -2,12 +2,15 @@ package core
 
 import (
 	"context"
+	"errors"
 	"github.com/3th1nk/easygo/util/strUtil"
 )
 
 func isOpError(err error, op string) bool {
-	if v, _ := err.(*Error); v != nil {
-		return v.Op == op
+	// 使用 errors.As 而非类型断言，支持被 wrap 后的错误（如 fmt.Errorf("%w", err)）
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Op == op
 	}
 	return false
 }

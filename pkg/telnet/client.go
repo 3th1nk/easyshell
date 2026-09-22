@@ -68,7 +68,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 
 	client := &Client{
 		c:   c,
-		r:   bufio.NewReaderSize(c, 256),
+		r:   bufio.NewReaderSize(c, 4096),
 		cfg: cfg,
 	}
 	defer func() {
@@ -128,31 +128,32 @@ func (this *Client) Read(buf []byte) (int, error) {
 
 // Write is for implements an io.Writer interface.
 func (this *Client) Write(buf []byte) (n int, err error) {
-	var s strings.Builder
-	if this.cfg.UnixWriteMode {
-		s.Write([]byte{cmd_IAC, LF})
-	} else {
-		s.WriteByte(cmd_IAC)
-	}
-
 	_ = this.SetWriteDeadline(time.Now().Add(this.cfg.WriteTimeout))
 	defer func() {
 		_ = this.SetWriteDeadline(time.Time{})
 	}()
 
 	for len(buf) > 0 {
-		var k int
-		i := bytes.IndexAny(buf, s.String())
+		// 查找下一个需要转义处理的字节：IAC 转义为双 IAC，LF 在 UnixWriteMode 时转换为 CR LF
+		//	注意：这里必须按字节查找，不能用 IndexAny（其第二参数是字符集合，会把无效 UTF-8 字节误判为 IAC）
+		i := bytes.IndexByte(buf, cmd_IAC)
+		if this.cfg.UnixWriteMode {
+			if j := bytes.IndexByte(buf, LF); j != -1 && (i == -1 || j < i) {
+				i = j
+			}
+		}
 		if i == -1 {
+			var k int
 			k, err = this.c.Write(buf)
 			n += k
-			break
-		} else {
-			k, err = this.c.Write(buf[:i])
-			n += k
-			if err != nil {
-				break
-			}
+			return n, err
+		}
+
+		var k int
+		k, err = this.c.Write(buf[:i])
+		n += k
+		if err != nil {
+			return n, err
 		}
 
 		switch buf[i] {
@@ -163,11 +164,11 @@ func (this *Client) Write(buf []byte) (n int, err error) {
 		}
 		n += k
 		if err != nil {
-			break
+			return n, err
 		}
 		buf = buf[i+1:]
 	}
-	return n, err
+	return n, nil
 }
 
 func (this *Client) SetEcho(echo bool) error {
@@ -468,7 +469,8 @@ func (this *Client) doReadUtilPrompt(timeout ...time.Duration) (data bytes.Buffe
 			return data, prompt, err
 		}
 		data.WriteByte(b)
-		if this.cfg.PromptRegex.MatchString(data.String()) || this.cfg.UserRegex.MatchString(data.String()) || this.cfg.PassRegex.MatchString(data.String()) {
+		// 用 Match(data.Bytes()) 匹配，避免每个字节都触发一次 data.String() 的全量拷贝
+		if this.cfg.PromptRegex.Match(data.Bytes()) || this.cfg.UserRegex.Match(data.Bytes()) || this.cfg.PassRegex.Match(data.Bytes()) {
 			if i := bytes.LastIndexByte(data.Bytes(), LF); i > 0 {
 				prompt.WriteString(strings.TrimSpace(string(data.Bytes()[i+1:])))
 				data.Truncate(i + 1)

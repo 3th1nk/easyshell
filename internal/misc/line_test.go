@@ -23,3 +23,14 @@ func TestLine(t *testing.T) {
 	assert.Equal(t, 1, LineCount(out, "aaa", "bbb"))
 	assert.Equal(t, 0, LineCount(out, "aaa", "ccc"))
 }
+
+func TestTrimEmptyLine(t *testing.T) {
+	assert.Equal(t, []string{"aaa", "bbb"}, TrimEmptyLine([]string{"", "aaa", "bbb", ""}))
+	assert.Equal(t, []string{"aaa", "bbb"}, TrimEmptyLine([]string{"aaa", "bbb"}))
+	assert.Equal(t, []string{"aaa"}, TrimEmptyLine([]string{"", "", "aaa"}))
+	assert.Equal(t, []string{"aaa"}, TrimEmptyLine([]string{"aaa", "", ""}))
+	// 全部为空行时应返回空
+	assert.Empty(t, TrimEmptyLine([]string{"", "", ""}))
+	assert.Empty(t, TrimEmptyLine([]string{""}))
+	assert.Empty(t, TrimEmptyLine([]string{}))
+}

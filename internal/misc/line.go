@@ -41,27 +41,16 @@ loop:
 // TrimEmptyLine 移除前后的空行
 func TrimEmptyLine(a []string) []string {
 	start := 0
-	for i, s := range a {
-		if s != "" {
-			start = i
+	for ; start < len(a); start++ {
+		if a[start] != "" {
 			break
 		}
 	}
-	if start != 0 {
-		a = a[start:]
-	}
+	a = a[start:]
 
 	end := len(a)
-	for i := end - 1; i >= 0; i-- {
-		if a[i] == "" {
-			end = i
-		} else {
-			break
-		}
+	for end > 0 && a[end-1] == "" {
+		end--
 	}
-	if end != len(a) {
-		a = a[:end]
-	}
-
-	return a
+	return a[:end]
 }

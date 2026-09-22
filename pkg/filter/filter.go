@@ -1,5 +1,7 @@
 package filter
 
+import "bytes"
+
 type IFilter interface {
 	// Do 过滤字符, 返回过滤后的字符, 不修改源数据
 	Do(s []byte) []byte
@@ -30,6 +32,9 @@ var DefaultOptions = Options{
 	Utf8Replace: true,
 }
 
+// utf8ReplaceChars UTF8替换字符 0xEF 0XBF 0XBD
+var utf8ReplaceChars = []byte{0xEF, 0xBF, 0xBD}
+
 func NewDefaultFilter(opt ...Options) IFilter {
 	if len(opt) > 0 {
 		return DefaultFilter{opt: opt[0]}
@@ -37,8 +42,28 @@ func NewDefaultFilter(opt ...Options) IFilter {
 	return DefaultFilter{opt: DefaultOptions}
 }
 
+// needFilter 快速判断是否包含需要处理的字符，绝大多数输出不含特殊字符，避免无效的数据拷贝
+func needFilter(s []byte, opt Options) bool {
+	if opt.Backspace && bytes.IndexByte(s, '\b') != -1 {
+		return true
+	}
+	if opt.Crlf && bytes.IndexByte(s, '\r') != -1 {
+		return true
+	}
+	if opt.Utf8Replace && bytes.Contains(s, utf8ReplaceChars) {
+		return true
+	}
+	if opt.AnsiEscape && bytes.IndexByte(s, '\x1b') != -1 {
+		return true
+	}
+	return false
+}
+
 func (f DefaultFilter) Do(src []byte) []byte {
 	if len(src) == 0 || f.opt.IsNothingToDo() {
+		return src
+	}
+	if !needFilter(src, f.opt) {
 		return src
 	}
 

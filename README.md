@@ -40,7 +40,7 @@
         Password:   "<password>",
         PrivateKey: "",
         InsecureAlgorithms: true,
-        Timeout:    5,
+        Timeout:    5 * time.Second,
     }
     s, err := NewSshShell(&SshShellConfig{
         Credential: &cred,

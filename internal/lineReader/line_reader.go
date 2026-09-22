@@ -20,6 +20,7 @@ func New(r io.Reader, opts ...Option) *LineReader {
 		r:      r,
 		filter: filter.NewDefaultFilter(),
 		lines:  make([]string, 0, 4),
+		notify: make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(obj)
@@ -58,6 +59,12 @@ type LineReader struct {
 	remainingOffset int                            // 缓冲区中最后一个换行符后面的部分的长度（在缓冲区中的原始长度）
 	mu              sync.Mutex                     //
 	err             error                          //
+	notify          chan struct{}                  // 数据通知（容量1，多次写入合并为一次通知）
+}
+
+// Notify 返回数据通知 channel，读取到新数据时收到信号，用于事件驱动读取
+func (lr *LineReader) Notify() <-chan struct{} {
+	return lr.notify
 }
 
 func (lr *LineReader) read() {
@@ -67,55 +74,66 @@ func (lr *LineReader) read() {
 	buf, offset := make([]byte, 4096), 0
 	for {
 		n, err := lr.r.Read(buf[offset:])
+		if n > 0 {
+			// 注意：Read 可能返回 n>0 且 err!=nil（如连接关闭前的最后一读），必须先处理数据再处理错误
+			size := offset + n
+			if e := lr.doRawOut(buf[offset:size]); e != nil {
+				util.PrintErrln("write raw out failed: %s", e)
+			}
+
+			lr.mu.Lock()
+
+			// 获取有效的缓冲区内容（并移除掉已经丢弃的 remaining）
+			var realBuf []byte
+			if lr.remaining == "" && lr.remainingOffset != 0 {
+				// 如果 remaining 为空、但 remainingOffset 不为 0 ，表示 remaining 在 popLine 函数中已经被丢弃了
+				realBuf = lr.doFilter(buf[lr.remainingOffset:size])
+				lr.remainingOffset = 0
+			} else {
+				realBuf = lr.doFilter(buf[:size])
+			}
+
+			// 从缓冲区最后一个换行符的位置，将缓冲区拆分为两部分
+			//   如果有换行符，则缓冲区中只留下最后一个换行符后面的内容；
+			//   如果没有换行符，缓冲区保留（同时要判断缓冲区自动扩容）。
+			if i := bytes.LastIndexByte(realBuf, '\n'); i >= 0 {
+				if linesStr := lr.decode(realBuf[:i]); linesStr != "" {
+					arr := strings.Split(linesStr, "\n")
+					lr.lines = append(lr.lines, arr...)
+				}
+
+				// remaining
+				lr.remaining = lr.decode(realBuf[i+1:])
+				copy(buf, realBuf[i+1:])
+				offset = len(realBuf[i+1:])
+
+			} else {
+				// 自动扩容
+				if size == len(buf) {
+					buf = make([]byte, size*2)
+				}
+
+				// remaining
+				lr.remaining = lr.decode(realBuf)
+				copy(buf, realBuf)
+				offset = len(realBuf)
+			}
+			lr.remainingOffset = offset
+
+			lr.mu.Unlock()
+
+			// 通知有新数据（非阻塞，多次通知合并）
+			select {
+			case lr.notify <- struct{}{}:
+			default:
+			}
+		}
 		if err != nil {
+			lr.mu.Lock()
 			lr.err = err
+			lr.mu.Unlock()
 			return
 		}
-		size := offset + n
-		if err = lr.doRawOut(buf[offset:size]); err != nil {
-			util.PrintErrln("write raw out failed: %s", err)
-		}
-
-		lr.mu.Lock()
-
-		// 获取有效的缓冲区内容（并移除掉已经丢弃的 remaining）
-		var realBuf []byte
-		if lr.remaining == "" && lr.remainingOffset != 0 {
-			// 如果 remaining 为空、但 remainingOffset 不为 0 ，表示 remaining 在 popLine 函数中已经被丢弃了
-			realBuf = lr.doFilter(buf[lr.remainingOffset:size])
-			lr.remainingOffset = 0
-		} else {
-			realBuf = lr.doFilter(buf[:size])
-		}
-
-		// 从缓冲区最后一个换行符的位置，将缓冲区拆分为两部分
-		//   如果有换行符，则缓冲区中只留下最后一个换行符后面的内容；
-		//   如果没有换行符，缓冲区保留（同时要判断缓冲区自动扩容）。
-		if i := bytes.LastIndexByte(realBuf, '\n'); i >= 0 {
-			if linesStr := lr.decode(realBuf[:i]); linesStr != "" {
-				arr := strings.Split(linesStr, "\n")
-				lr.lines = append(lr.lines, arr...)
-			}
-
-			// remaining
-			lr.remaining = lr.decode(realBuf[i+1:])
-			copy(buf, realBuf[i+1:])
-			offset = len(realBuf[i+1:])
-
-		} else {
-			// 自动扩容
-			if size == len(buf) {
-				buf = make([]byte, size*2)
-			}
-
-			// remaining
-			lr.remaining = lr.decode(realBuf)
-			copy(buf, realBuf)
-			offset = len(realBuf)
-		}
-		lr.remainingOffset = offset
-
-		lr.mu.Unlock()
 	}
 }
 

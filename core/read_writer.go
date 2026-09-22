@@ -12,6 +12,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,10 +48,11 @@ func New(in io.Writer, out, err io.Reader, cfg Config) *ReadWriter {
 	}
 
 	r := &ReadWriter{
-		in:  in,
-		out: lineReader.New(out, opts...),
-		err: lineReader.New(err, opts...),
-		cfg: cfg,
+		in:          in,
+		out:         lineReader.New(out, opts...),
+		err:         lineReader.New(err, opts...),
+		cfg:         cfg,
+		promptRegex: cfg.PromptRegex,
 	}
 	if cfg.LazyOutInterval > 0 || cfg.LazyOutSize > 0 {
 		r.lo = lazyOut.New(cfg.LazyOutInterval, cfg.LazyOutSize)
@@ -63,7 +65,11 @@ type ReadWriter struct {
 	in       io.Writer
 	out, err *lineReader.LineReader
 	lo       *lazyOut.LazyOut
-	prompt   string
+
+	// mu 保护 prompt、promptRegex：Read 过程中会写入，而 Prompt、IsEndLine 可能被其他 goroutine 调用
+	mu          sync.Mutex
+	prompt      string           // 最近一次匹配到的提示符
+	promptRegex []*regexp.Regexp // 提示符匹配规则（从 cfg.PromptRegex 拷贝，AutoPrompt 时可能追加，不回写到调用方的 Config）
 }
 
 func (r *ReadWriter) Stop() {
@@ -84,16 +90,22 @@ func (r *ReadWriter) Write(cmd string) (err error) {
 	return r.WriteRaw([]byte(cmd))
 }
 
-// WriteRaw 向输入流写入指定内容，并等待指定时间（默认 10 毫秒）。
+// WriteRaw 向输入流写入指定内容（不自动补充换行符）。
 func (r *ReadWriter) WriteRaw(b []byte) (err error) {
-	if len(b) != 0 {
-		_, err = r.in.Write(b)
+	if len(b) == 0 {
+		return nil
 	}
-	return nil
+	if r.in == nil {
+		return &Error{Op: "write", Err: io.ErrClosedPipe}
+	}
+	_, err = r.in.Write(b)
+	return err
 }
 
 // Prompt 命令交互过程中提示符可能发生变化，该方法获取最新的提示符
 func (r *ReadWriter) Prompt() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.prompt
 }
 
@@ -116,6 +128,10 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 		}
 	}
 
+	if r.out == nil {
+		return &Error{Op: "read", Err: io.ErrClosedPipe}
+	}
+
 	if r.lo != nil {
 		r.lo.SetOut(onOut)
 		onOut = r.lo.Add
@@ -124,9 +140,99 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 	ticker := time.NewTicker(r.cfg.ReadConfirmWait)
 	defer ticker.Stop()
 
+	// pop 读取并处理输出，返回 true 表示本次读取结束（读到流结尾 或 已确认命令执行完成）
 	var outBuf strings.Builder
 	var stop bool
 	var confirm int
+	pop := func() bool {
+		_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
+			stop = false
+			if len(lines) != 0 && onOut != nil {
+				onOut(lines)
+			}
+
+			// 匹配优先级：指定的拦截器规则 > 默认拦截器规则 > 命令结束提示符规则
+			if len(interceptors) > 0 {
+				if outBuf.Len() > 0 {
+					outBuf.WriteString("\n")
+				}
+				outBuf.WriteString(strings.Join(lines, "\n"))
+				if remaining != "" {
+					outBuf.WriteString("\n")
+					outBuf.WriteString(remaining)
+				}
+				for _, f := range interceptors {
+					if match, showOut, input := f(outBuf.String()); match {
+						//util.PrintTimeLn("interceptor matched: %v => %v", outBuf.String(), input)
+						outBuf.Reset()
+						// TODO 如果是匹配多行内容的拦截器，前面行的内容总是被返回了，后续优化
+						_ = r.Write(input) // 这里自动加了 \n
+						return !showOut
+					}
+				}
+				// 无匹配时仅保留尾部有限窗口，避免大输出场景下内存和正则匹配开销持续增长
+				//	内置拦截器均只匹配最后一行(尾行)，窗口外的历史内容不影响其匹配
+				trimOutBuf(&outBuf, interceptorOutWindow)
+			}
+
+			if remaining == "" {
+				return false
+			}
+
+			// 默认拦截器规则
+			for _, f := range defaultInterceptors {
+				if match, showOut, input := f(remaining); match {
+					outBuf.Reset()
+					if showOut && onOut != nil {
+						onOut([]string{remaining})
+					}
+					_ = r.WriteRaw([]byte(input))
+					return !showOut
+				}
+			}
+
+			// 命令输出结束
+			if r.IsEndLine(remaining) {
+				r.mu.Lock()
+				//  当未指定提示符规则 且 AutoPrompt=true时，尝试自动纠正提示符匹配规则
+				if len(r.promptRegex) == 0 && r.cfg.AutoPrompt {
+					if re := findPromptRegex(remaining); re != nil {
+						r.promptRegex = append(r.promptRegex, re)
+						util.PrintTimeLn("prompt:" + remaining + ", correct prompt regex:" + re.String())
+					}
+				}
+				r.prompt = remaining
+				r.mu.Unlock()
+				stop = stopOnEndLine
+				return !r.cfg.ShowPrompt
+			}
+
+			return false
+		})
+		if e != nil {
+			// 保留 err 后退出循环，继续后续的 err.PopLines
+			if e != io.EOF && !errors.Is(e, io.ErrClosedPipe) && !errors.Is(e, io.ErrNoProgress) && !errors.Is(e, io.ErrUnexpectedEOF) {
+				err = &Error{Op: "read", Err: e}
+			}
+			return true
+		}
+
+		// util.PrintTimeLn("--> stop=%v, confirm=%v", stop, confirm)
+		if stop {
+			if confirm >= r.cfg.ReadConfirm {
+				// util.PrintTimeLn("--> stop read out")
+				return true
+			}
+			confirm++
+		} else {
+			confirm = 0
+		}
+		return false
+	}
+
+	// 事件驱动 + 轮询兜底：
+	//	有新数据时通过通知立即处理（降低交互延迟），无数据时靠 ticker 递增确认次数
+	outNotify := r.out.Notify()
 	for {
 		select {
 		case <-ctx.Done():
@@ -140,82 +246,13 @@ func (r *ReadWriter) Read(ctx context.Context, stopOnEndLine bool, onOut func(li
 			}
 
 		case <-ticker.C:
-			_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
-				stop = false
-				if len(lines) != 0 && onOut != nil {
-					onOut(lines)
-				}
-
-				// 匹配优先级：指定的拦截器规则 > 默认拦截器规则 > 命令结束提示符规则
-				if len(interceptors) > 0 {
-					if outBuf.Len() > 0 {
-						outBuf.WriteString("\n")
-					}
-					outBuf.WriteString(strings.Join(lines, "\n"))
-					if remaining != "" {
-						outBuf.WriteString("\n")
-						outBuf.WriteString(remaining)
-					}
-					for _, f := range interceptors {
-						if match, showOut, input := f(outBuf.String()); match {
-							//util.PrintTimeLn("interceptor matched: %v => %v", outBuf.String(), input)
-							outBuf.Reset()
-							// TODO 如果是匹配多行内容的拦截器，前面行的内容总是被返回了，后续优化
-							_ = r.Write(input) // 这里自动加了 \n
-							return !showOut
-						}
-					}
-				}
-
-				if remaining == "" {
-					return false
-				}
-
-				// 默认拦截器规则
-				for _, f := range defaultInterceptors {
-					if match, showOut, input := f(remaining); match {
-						outBuf.Reset()
-						if showOut && onOut != nil {
-							onOut([]string{remaining})
-						}
-						_ = r.WriteRaw([]byte(input))
-						return !showOut
-					}
-				}
-
-				// 命令输出结束
-				if r.IsEndLine(remaining) {
-					//  当未指定提示符规则 且 AutoPrompt=true时，尝试自动纠正提示符匹配规则
-					if len(r.cfg.PromptRegex) == 0 && r.cfg.AutoPrompt {
-						if re := findPromptRegex(remaining); re != nil {
-							r.cfg.PromptRegex = append(r.cfg.PromptRegex, re)
-							util.PrintTimeLn("prompt:" + remaining + ", correct prompt regex:" + re.String())
-						}
-					}
-					r.prompt = remaining
-					stop = stopOnEndLine
-					return !r.cfg.ShowPrompt
-				}
-
-				return false
-			})
-			if e != nil {
-				// 保留 err 后退出循环，继续后续的 err.PopLines
-				if e != io.EOF && !errors.Is(e, io.ErrClosedPipe) && !errors.Is(e, io.ErrNoProgress) && !errors.Is(e, io.ErrUnexpectedEOF) {
-					err = &Error{Op: "read", Err: e}
-				}
+			if pop() {
 				goto exit
 			}
 
-			// util.PrintTimeLn("--> stop=%v, confirm=%v", stop, confirm)
-			if stop {
-				if confirm >= r.cfg.ReadConfirm {
-					// util.PrintTimeLn("--> stop read out")
-					goto exit
-				}
-				confirm++
-			} else {
-				confirm = 0
+		case <-outNotify:
+			if pop() {
+				goto exit
 			}
 		}
 	}
@@ -254,7 +291,8 @@ exit:
 			time.Sleep(r.cfg.ReadConfirmWait)
 		}
 		if errBuf.Len() > 0 {
-			err = &Error{Op: "read", Err: fmt.Errorf(errBuf.String())}
+			// 注意：这里会覆盖前面的 timeout/canceled 错误，把 stderr 内容作为错误返回
+			err = &Error{Op: "read", Err: errors.New(errBuf.String())}
 		}
 	}
 
@@ -265,10 +303,34 @@ exit:
 	return
 }
 
+// interceptorOutWindow 拦截器匹配缓冲区的尾部窗口大小
+//
+//	内置拦截器均只匹配最后一行(尾行)，超出窗口的历史内容不影响匹配；
+//	若自定义了需要匹配大量历史内容的拦截器，调大该值即可
+const interceptorOutWindow = 8 * 1024
+
+// trimOutBuf 将缓冲区裁剪为尾部 limit 字节的内容（从行边界截断，避免截断多字节字符）
+func trimOutBuf(buf *strings.Builder, limit int) {
+	if buf.Len() <= limit {
+		return
+	}
+	s := buf.String()
+	tail := s[len(s)-limit:]
+	if i := strings.IndexByte(tail, '\n'); i >= 0 {
+		tail = tail[i+1:]
+	}
+	buf.Reset()
+	buf.WriteString(tail)
+}
+
 func (r *ReadWriter) IsEndLine(s string) bool {
+	r.mu.Lock()
+	regexArr := r.promptRegex
+	r.mu.Unlock()
+
 	var matched bool
-	if len(r.cfg.PromptRegex) != 0 {
-		for _, v := range r.cfg.PromptRegex {
+	if len(regexArr) != 0 {
+		for _, v := range regexArr {
 			if v != nil && v.MatchString(s) {
 				// util.PrintTimeLn("prompt matched:" + s)
 				matched = true

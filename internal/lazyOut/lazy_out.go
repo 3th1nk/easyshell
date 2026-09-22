@@ -70,12 +70,13 @@ func (l *LazyOut) SetOut(f func(lines []string)) {
 }
 
 func (l *LazyOut) Add(lines []string) {
-	if l.onOut == nil {
+	l.mu.Lock()
+	onOut := l.onOut
+	if onOut == nil {
+		l.mu.Unlock()
 		return
 	}
 
-	l.mu.Lock()
-	onOut := l.onOut
 	var outLines []string
 	l.lines = append(l.lines, lines...)
 	for _, s := range lines {
@@ -91,7 +92,7 @@ func (l *LazyOut) Add(lines []string) {
 	}
 	l.mu.Unlock()
 
-	if onOut != nil && outLines != nil {
+	if outLines != nil {
 		onOut(outLines)
 	}
 }

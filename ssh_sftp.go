@@ -5,6 +5,7 @@ import (
 	"github.com/3th1nk/easyshell/core"
 	"github.com/pkg/sftp"
 	"os"
+	"path"
 	"path/filepath"
 )
 
@@ -28,10 +29,12 @@ check:
 	}
 	if rfi != nil {
 		if rfi.IsDir() {
-			if filepath.Base(localPath) == filepath.Base(remotePath) {
+			if filepath.Base(localPath) == path.Base(remotePath) {
 				return &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("remote path is a directory")}
 			}
-			remotePath = filepath.Join(remotePath, filepath.Base(localPath))
+			// 远程路径必须用 path 包拼接：远程是类Unix系统，用 '/' 分隔；
+			// filepath 在 Windows 上会用 '\'，会被远程当成文件名字符
+			remotePath = path.Join(remotePath, filepath.Base(localPath))
 			goto check
 		}
 
@@ -40,7 +43,7 @@ check:
 		}
 	}
 
-	if err = cli.MkdirAll(filepath.Dir(remotePath)); err != nil {
+	if err = cli.MkdirAll(path.Dir(remotePath)); err != nil {
 		return err
 	}
 
@@ -72,7 +75,7 @@ func (this *SshShell) uploadDir(cli *sftp.Client, localPath, remotePath string, 
 
 	for _, localFile := range localFiles {
 		localFilePath := filepath.Join(localPath, localFile.Name())
-		remoteFilePath := filepath.Join(remotePath, localFile.Name())
+		remoteFilePath := path.Join(remotePath, localFile.Name())
 		if localFile.IsDir() {
 			if err = this.uploadDir(cli, localFilePath, remoteFilePath, force); err != nil {
 				return err
@@ -115,10 +118,10 @@ check:
 	}
 	if lfi != nil {
 		if lfi.IsDir() {
-			if filepath.Base(localPath) == filepath.Base(remotePath) {
+			if filepath.Base(localPath) == path.Base(remotePath) {
 				return &core.Error{Op: "sftp", Addr: this.client.RemoteAddr().String(), Err: fmt.Errorf("local path is a directory")}
 			}
-			localPath = filepath.Join(localPath, filepath.Base(remotePath))
+			localPath = filepath.Join(localPath, path.Base(remotePath))
 			goto check
 		}
 
@@ -158,7 +161,7 @@ func (this *SshShell) downDir(cli *sftp.Client, remotePath, localPath string, fo
 	}
 
 	for _, remoteFile := range remoteFiles {
-		remoteFilePath := filepath.Join(remotePath, remoteFile.Name())
+		remoteFilePath := path.Join(remotePath, remoteFile.Name())
 		localFilePath := filepath.Join(localPath, remoteFile.Name())
 		if remoteFile.IsDir() {
 			if err = this.downDir(cli, remoteFilePath, localFilePath, force); err != nil {
@@ -193,27 +196,27 @@ func (this *SshShell) SftpDown(remotePath, localPath string, force bool) error {
 }
 
 // SftpRemove 删除远程文件、目录，如果是目录，则递归删除目录及子目录下的所有文件
-func (this *SshShell) SftpRemove(path string) error {
+func (this *SshShell) SftpRemove(remotePath string) error {
 	cli, err := this.SftpClient(sftp.MaxPacket(1 << 15))
 	if err != nil {
 		return err
 	}
-	fi, err := cli.Stat(path)
+	fi, err := cli.Stat(remotePath)
 	if err != nil {
 		return err
 	}
 	if fi.IsDir() {
-		fiArr, err := cli.ReadDir(path)
+		fiArr, err := cli.ReadDir(remotePath)
 		if err != nil {
 			return err
 		}
 		// 不能直接删除非空目录，需要先删除其下的文件
 		for _, f := range fiArr {
-			if err = this.SftpRemove(filepath.Join(path, f.Name())); err != nil {
+			if err = this.SftpRemove(path.Join(remotePath, f.Name())); err != nil {
 				return err
 			}
 		}
-		return cli.RemoveDirectory(path)
+		return cli.RemoveDirectory(remotePath)
 	}
-	return cli.Remove(path)
+	return cli.Remove(remotePath)
 }
