@@ -158,7 +158,7 @@ func TestMockSshShell_Sftp(t *testing.T) {
 	assert.NoError(t, os.WriteFile(filepath.Join(localDir, "sub", "b.txt"), content2, 0644))
 
 	// 上传目录
-	assert.NoError(t, s.SftpUpload(localDir, "upload"))
+	assert.NoError(t, s.SftpUpload(context.Background(), localDir, "upload"))
 
 	// 校验远端内容
 	cli, err := s.SftpClient()
@@ -171,19 +171,19 @@ func TestMockSshShell_Sftp(t *testing.T) {
 	assert.Equal(t, content2, got)
 
 	// 已存在且不覆盖 → ErrExist；覆盖 → 成功且内容更新
-	err = s.SftpUpload(filepath.Join(localDir, "a.txt"), "upload/a.txt")
+	err = s.SftpUpload(context.Background(), filepath.Join(localDir, "a.txt"), "upload/a.txt")
 	assert.True(t, errors.Is(err, os.ErrExist), "got=%v", err)
 
 	content3 := []byte("updated")
 	assert.NoError(t, os.WriteFile(filepath.Join(localDir, "a.txt"), content3, 0644))
-	assert.NoError(t, s.SftpUpload(filepath.Join(localDir, "a.txt"), "upload/a.txt", SftpOptions{Force: true}))
+	assert.NoError(t, s.SftpUpload(context.Background(), filepath.Join(localDir, "a.txt"), "upload/a.txt", SftpOptions{Force: true}))
 	got, err = readRemoteFile(cli, "upload/a.txt")
 	assert.NoError(t, err)
 	assert.Equal(t, content3, got)
 
 	// 下载
 	downDir := t.TempDir()
-	assert.NoError(t, s.SftpDown("upload/a.txt", filepath.Join(downDir, "a.txt")))
+	assert.NoError(t, s.SftpDown(context.Background(), "upload/a.txt", filepath.Join(downDir, "a.txt")))
 	got, err = os.ReadFile(filepath.Join(downDir, "a.txt"))
 	assert.NoError(t, err)
 	assert.Equal(t, content3, got)
@@ -334,4 +334,60 @@ func TestMockSshShell_RunPrompt(t *testing.T) {
 	// 退出配置模式
 	assert.NoError(t, s.RunPrompt(ctx, "exit", regexp.MustCompile(`<mock>#\s*$`), nil))
 	assert.False(t, s.InConfigMode())
+}
+
+// TestMockSshShell_ProxyChain 离线验证多级跳板机链：
+//
+//	mock服务A作为跳板(转发到B的端口)，目标为另一台mock服务B；
+//	通过A的 SSH "direct-tcpip" 通道连接B——这里直接复用 testsrv 的两个实例，
+//	用 ssh.Client.Dial 转发。简化验证：单级跳板(跳板=第一个mock，目标=第二个mock)。
+func TestMockSshShell_ProxyChain(t *testing.T) {
+	target := testsrv.NewSshServer(t)
+	target.Banner = "Welcome to target"
+
+	jump := testsrv.NewSshServer(t) // 跳板机
+
+	s, err := NewSshShell(SshConfig{
+		Credential: SshCredential{
+			Host: hostOf(target.Addr), Port: portOf(target.Addr),
+			User: target.User, Password: target.Password, Timeout: 3 * time.Second,
+		},
+		Proxy: &ProxyConfig{
+			Credential: SshCredential{
+				Host: hostOf(jump.Addr), Port: portOf(jump.Addr),
+				User: jump.User, Password: jump.Password, Timeout: 3 * time.Second,
+			},
+		},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	// 经跳板机连到目标(目标的横幅可区分)
+	assert.True(t, hasLine(s.HeadLine(), "target"), "应连到目标而非跳板机: %v", s.HeadLine())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var lines []string
+	assert.NoError(t, s.Run(ctx, "show version", func(arr []string) {
+		lines = append(lines, arr...)
+	}))
+	assert.Equal(t, []string{"out:show version"}, lines)
+
+	// 认证失败的目标(经由跳板) → auth错误
+	_, err = NewSshShell(SshConfig{
+		Credential: SshCredential{
+			Host: hostOf(target.Addr), Port: portOf(target.Addr),
+			User: target.User, Password: "wrong", Timeout: 3 * time.Second,
+		},
+		Proxy: &ProxyConfig{
+			Credential: SshCredential{
+				Host: hostOf(jump.Addr), Port: portOf(jump.Addr),
+				User: jump.User, Password: jump.Password, Timeout: 3 * time.Second,
+			},
+		},
+	})
+	assert.Error(t, err)
+	assert.True(t, core.IsAuth(err), "got=%v", err)
 }

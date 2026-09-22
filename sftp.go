@@ -1,6 +1,7 @@
 package easyshell
 
 import (
+	"context"
 	"fmt"
 	"github.com/3th1nk/easyshell/v2/core"
 	"github.com/pkg/sftp"
@@ -40,7 +41,8 @@ func (s *SshShell) SftpClient(opt ...sftp.ClientOption) (*sftp.Client, error) {
 // SftpUpload 上传本地文件/目录到远端。
 //
 //	目标为目录时上传到目录下(以本地文件/目录名命名)；目标文件已存在且未指定 Force 时返回 os.ErrExist。
-func (s *SshShell) SftpUpload(localPath, remotePath string, opts ...SftpOptions) error {
+//	ctx 取消时中止传输：关闭当前 sftp 连接(进行中的操作立即失败)，下次调用自动重建。
+func (s *SshShell) SftpUpload(ctx context.Context, localPath, remotePath string, opts ...SftpOptions) error {
 	opt := firstOpt(opts)
 	cli, err := s.SftpClient(opt.clientOptions()...)
 	if err != nil {
@@ -52,15 +54,20 @@ func (s *SshShell) SftpUpload(localPath, remotePath string, opts ...SftpOptions)
 		return err
 	}
 	if fi.IsDir() {
-		return s.uploadDir(cli, localPath, remotePath, opt.Force)
+		return s.sftpWithCtx(ctx, cli, func() error {
+			return s.uploadDir(cli, localPath, remotePath, opt.Force)
+		})
 	}
-	return s.uploadFile(cli, localPath, remotePath, opt.Force)
+	return s.sftpWithCtx(ctx, cli, func() error {
+		return s.uploadFile(cli, localPath, remotePath, opt.Force)
+	})
 }
 
 // SftpDown 下载远端文件/目录到本地。
 //
 //	目标为目录时下载到目录下(以远端文件/目录名命名)；本地文件已存在且未指定 Force 时返回 os.ErrExist。
-func (s *SshShell) SftpDown(remotePath, localPath string, opts ...SftpOptions) error {
+//	ctx 取消时中止传输：关闭当前 sftp 连接(进行中的操作立即失败)，下次调用自动重建。
+func (s *SshShell) SftpDown(ctx context.Context, remotePath, localPath string, opts ...SftpOptions) error {
 	opt := firstOpt(opts)
 	cli, err := s.SftpClient(opt.clientOptions()...)
 	if err != nil {
@@ -72,9 +79,36 @@ func (s *SshShell) SftpDown(remotePath, localPath string, opts ...SftpOptions) e
 		return err
 	}
 	if rfi.IsDir() {
-		return s.downDir(cli, remotePath, localPath, opt.Force)
+		return s.sftpWithCtx(ctx, cli, func() error {
+			return s.downDir(cli, remotePath, localPath, opt.Force)
+		})
 	}
-	return s.downFile(cli, remotePath, localPath, opt.Force)
+	return s.sftpWithCtx(ctx, cli, func() error {
+		return s.downFile(cli, remotePath, localPath, opt.Force)
+	})
+}
+
+// sftpWithCtx 为 sftp 传输附加 context 取消能力：取消时关闭 sftp 连接中止传输，
+//
+//	连接缓存置空，下次调用自动重建。
+func (s *SshShell) sftpWithCtx(ctx context.Context, cli *sftp.Client, fn func() error) error {
+	if ctx == nil {
+		return fn()
+	}
+	errC := make(chan error, 1)
+	go func() { errC <- fn() }()
+	select {
+	case err := <-errC:
+		return err
+	case <-ctx.Done():
+		s.sftpMu.Lock()
+		if s.sftpCli == cli {
+			_ = cli.Close()
+			s.sftpCli = nil
+		}
+		s.sftpMu.Unlock()
+		return ctx.Err()
+	}
 }
 
 // SftpRemove 删除远端文件/目录(目录递归删除)

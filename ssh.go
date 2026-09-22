@@ -9,7 +9,11 @@ import (
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"net"
+	"os"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -33,11 +37,23 @@ var (
 	}
 )
 
+// ProxyConfig 跳板机(堡垒机)配置。
+//
+//	支持多级链：目标主机经由 Proxy 指定的跳板机连接，跳板机自身也可再指定 Proxy。
+type ProxyConfig struct {
+	// Credential 跳板机的登录凭证
+	Credential SshCredential
+	// Proxy 跳板机的上级跳板机(多级链)
+	Proxy *ProxyConfig
+}
+
 // SshConfig SSH Shell 配置(零值合法)
 type SshConfig struct {
 	Config
 	// Credential SSH 登录凭证
 	Credential SshCredential
+	// Proxy 跳板机(堡垒机)配置，nil 时直连
+	Proxy *ProxyConfig
 	// Echo 模拟终端回显，默认 false；部分网络设备上无效(总是回显)
 	Echo bool
 	// Term 模拟终端类型，默认 VT100
@@ -61,24 +77,133 @@ func (cfg SshConfig) normalize() SshConfig {
 	return cfg
 }
 
-// NewSshClient 创建 SSH 连接。
-//
+// NewSshClient 创建 SSH 连接(直连)。
 //	连接失败返回 core.Error{Op: OpDial}，认证失败返回 core.Error{Op: OpAuth}。
 func NewSshClient(cred SshCredential) (*ssh.Client, error) {
-	addr := fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
+	return dialSsh(cred, nil)
+}
+
+// dialSsh 建立SSH连接；proxyDialer 非 nil 时经由跳板机建立底层连接。
+func dialSsh(cred SshCredential, proxyDialer func(network, addr string) (net.Conn, error)) (*ssh.Client, error) {
+	addr := sshAddr(cred)
 	timeout := cred.Timeout
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
 
+	// 底层连接：直连 或 经由跳板机
+	var conn net.Conn
+	var e error
+	if proxyDialer != nil {
+		if conn, e = proxyDialer("tcp", addr); e != nil {
+			return nil, &core.Error{Op: core.OpDial, Addr: addr, Err: e}
+		}
+	} else {
+		if conn, e = net.DialTimeout("tcp", addr, timeout); e != nil {
+			return nil, &core.Error{Op: core.OpDial, Addr: addr, Err: e}
+		}
+	}
+	if dc, ok := conn.(interface{ SetDeadline(t time.Time) error }); ok {
+		// 拨号与握手的总时限；握手完成后解除
+		_ = dc.SetDeadline(time.Now().Add(timeout))
+		defer func() { _ = dc.SetDeadline(time.Time{}) }()
+	}
+
+	clientConfig := &ssh.ClientConfig{
+		Config:            cfgOf(cred),
+		User:              cred.User,
+		Auth:              sshAuthMethods(cred),
+		HostKeyCallback:   hostKeyCallbackOf(cred),
+		HostKeyAlgorithms: openSshHostKeyAlgorithms,
+		Timeout:           timeout,
+	}
+	c, chans, reqs, e := ssh.NewClientConn(conn, addr, clientConfig)
+	if e != nil {
+		// 认证失败/主机密钥不匹配 → auth；其余(I/O、版本协商) → dial
+		if strings.Contains(e.Error(), "unable to authenticate") || strings.Contains(e.Error(), "host key") || strings.Contains(e.Error(), "fingerprint") {
+			return nil, &core.Error{Op: core.OpAuth, Addr: addr, Err: e}
+		}
+		return nil, &core.Error{Op: core.OpDial, Addr: addr, Err: e}
+	}
+	return ssh.NewClient(c, chans, reqs), nil
+}
+
+// dialSshChain 建立经由跳板机链的SSH连接。
+//
+//	返回目标客户端与级联关闭函数 closeAll(按 目标→中间跳板→最外层跳板 的顺序关闭，
+//	经跳板机的连接是上级连接上的隧道，必须先关目标再关跳板)。
+func dialSshChain(cred SshCredential, proxy *ProxyConfig) (client *ssh.Client, closeAll func(), err error) {
+	if proxy == nil {
+		client, err = dialSsh(cred, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		return client, func() { _ = client.Close() }, nil
+	}
+
+	// 递归建立跳板机的连接(跳板机自身可能还有上级跳板)
+	proxyClient, closeProxy, err := dialSshChain(proxy.Credential, proxy.Proxy)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	targetAddr := sshAddr(cred)
+	timeout := cred.Timeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	conn, e := proxyClient.Dial("tcp", targetAddr)
+	if e != nil {
+		closeProxy()
+		return nil, nil, &core.Error{Op: core.OpDial, Addr: targetAddr, Err: e}
+	}
+	if dc, ok := conn.(interface{ SetDeadline(t time.Time) error }); ok {
+		_ = dc.SetDeadline(time.Now().Add(timeout))
+		defer func() { _ = dc.SetDeadline(time.Time{}) }()
+	}
+
+	clientConfig := &ssh.ClientConfig{
+		Config:            cfgOf(cred),
+		User:              cred.User,
+		Auth:              sshAuthMethods(cred),
+		HostKeyCallback:   hostKeyCallbackOf(cred),
+		HostKeyAlgorithms: openSshHostKeyAlgorithms,
+		Timeout:           timeout,
+	}
+	c, chans, reqs, e := ssh.NewClientConn(conn, targetAddr, clientConfig)
+	if e != nil {
+		closeProxy()
+		if strings.Contains(e.Error(), "unable to authenticate") || strings.Contains(e.Error(), "host key") {
+			return nil, nil, &core.Error{Op: core.OpAuth, Addr: targetAddr, Err: e}
+		}
+		return nil, nil, &core.Error{Op: core.OpDial, Addr: targetAddr, Err: e}
+	}
+	client = ssh.NewClient(c, chans, reqs)
+	return client, func() {
+		_ = client.Close()
+		closeProxy()
+	}, nil
+}
+
+func sshAddr(cred SshCredential) string {
+	return fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
+}
+
+// sshAuthMethods 构建认证方式，优先级：密钥 → SSH Agent → 密码
+func sshAuthMethods(cred SshCredential) []ssh.AuthMethod {
 	var auths []ssh.AuthMethod
 	if cred.PrivateKey != "" {
-		if signer, err := ssh.ParsePrivateKey([]byte(cred.PrivateKey)); err != nil {
-			return nil, &core.Error{Op: core.OpAuth, Addr: addr, Err: fmt.Errorf("privateKey error: %v", err)}
-		} else {
+		if signer, err := ssh.ParsePrivateKey([]byte(cred.PrivateKey)); err == nil {
 			auths = append(auths, ssh.PublicKeys(signer))
 		}
-	} else if cred.Password != "" {
+	}
+	if cred.UseAgent {
+		if a := sshAgentClient(cred.AgentSocket); a != nil {
+			// 回调式加载：认证时才从Agent取签名
+			auths = append(auths, ssh.PublicKeysCallback(a.Signers))
+		}
+	}
+	if len(auths) == 0 && cred.Password != "" {
 		auths = append(auths,
 			ssh.Password(cred.Password),
 			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) (answers []string, err error) {
@@ -86,10 +211,36 @@ func NewSshClient(cred SshCredential) (*ssh.Client, error) {
 			}),
 		)
 	}
-	if len(auths) == 0 {
-		return nil, &core.Error{Op: core.OpAuth, Addr: addr, Err: fmt.Errorf("no auth method")}
-	}
+	return auths
+}
 
+// sshAgentClient 连接SSH Agent(优先使用指定socket，否则环境变量 SSH_AUTH_SOCK)
+func sshAgentClient(socket string) agent.Agent {
+	if socket == "" {
+		socket = os.Getenv("SSH_AUTH_SOCK")
+	}
+	if socket == "" {
+		return nil
+	}
+	if conn, err := net.Dial("unix", socket); err == nil {
+		return agent.NewClient(conn)
+	}
+	return nil
+}
+
+func hostKeyCallbackOf(cred SshCredential) ssh.HostKeyCallback {
+	if cred.Fingerprint == "" {
+		return ssh.InsecureIgnoreHostKey()
+	}
+	return func(hostname string, remote net.Addr, publicKey ssh.PublicKey) error {
+		if ssh.FingerprintSHA256(publicKey) != cred.Fingerprint {
+			return fmt.Errorf("ssh: host key fingerprint mismatch")
+		}
+		return nil
+	}
+}
+
+func cfgOf(cred SshCredential) ssh.Config {
 	cfg := ssh.Config{}
 	cfg.SetDefaults()
 	if cred.InsecureAlgorithms {
@@ -97,49 +248,24 @@ func NewSshClient(cred SshCredential) (*ssh.Client, error) {
 		cfg.KeyExchanges = append(cfg.KeyExchanges, insecureSshKeyExchanges...)
 		cfg.MACs = append(cfg.MACs, insecureSshMACs...)
 	}
-
-	hostKeyCallback := ssh.InsecureIgnoreHostKey()
-	if cred.Fingerprint != "" {
-		hostKeyCallback = func(hostname string, remote net.Addr, publicKey ssh.PublicKey) error {
-			if ssh.FingerprintSHA256(publicKey) != cred.Fingerprint {
-				return fmt.Errorf("ssh: host key fingerprint mismatch")
-			}
-			return nil
-		}
-	}
-
-	c, e := ssh.Dial("tcp", addr, &ssh.ClientConfig{
-		Config:            cfg,
-		User:              cred.User,
-		Auth:              auths,
-		HostKeyCallback:   hostKeyCallback,
-		HostKeyAlgorithms: openSshHostKeyAlgorithms,
-		Timeout:           timeout,
-	})
-	if e != nil {
-		if v, _ := e.(*net.OpError); v != nil {
-			return nil, &core.Error{Op: core.OpDial, Addr: addr, Err: e}
-		}
-		return nil, &core.Error{Op: core.OpAuth, Addr: addr, Err: e}
-	}
-	return c, nil
+	return cfg
 }
 
-// NewSshShell 创建 SSH Shell 并完成登录。
-//
+// NewSshShell 创建 SSH Shell 并完成登录(经由跳板机时，跳板机连接随 Shell.Close 一起关闭)。
 //	登录横幅(欢迎信息、密码过期提示等)会被自动消费，通过 HeadLine() 获取。
 func NewSshShell(cfg SshConfig) (*SshShell, error) {
-	client, err := NewSshClient(cfg.Credential)
+	client, closeAll, err := dialSshChain(cfg.Credential, cfg.Proxy)
 	if err != nil {
 		return nil, err
 	}
 
 	shell, err := NewSshShellFromClient(client, cfg)
 	if err != nil {
-		_ = client.Close()
+		closeAll()
 		return nil, err
 	}
 	shell.ownClient = true
+	shell.closeAll = closeAll
 	return shell, nil
 }
 
@@ -192,6 +318,8 @@ type SshShell struct {
 	client    *ssh.Client
 	session   *ssh.Session
 	sftpCli   *sftp.Client
+	sftpMu    sync.Mutex // 保护 sftpCli(SFTP取消时会在其他 goroutine 中重建)
+	closeAll  func()     // 级联关闭(目标+跳板机链)
 	ownClient bool
 	headLine  []string
 }
@@ -209,16 +337,17 @@ func (s *SshShell) HeadLine() []string {
 	return s.headLine
 }
 
-// Close 关闭(幂等)：先关闭 SFTP/会话，再按所有权关闭连接。
-//
-//	注意：应先关闭会话再关闭 Reader，确保输出流正常收尾。
+// Close 关闭(幂等)：先关闭 SFTP/会话，再按所有权关闭目标与跳板机连接。
 func (s *SshShell) Close() (err error) {
+	s.sftpMu.Lock()
 	if s.sftpCli != nil {
 		if e := s.sftpCli.Close(); e != nil && err == nil {
 			err = e
 		}
 		s.sftpCli = nil
 	}
+	s.sftpMu.Unlock()
+
 	if s.session != nil {
 		if e := s.session.Close(); e != nil && err == nil {
 			err = e
@@ -232,6 +361,12 @@ func (s *SshShell) Close() (err error) {
 			}
 		}
 		s.client = nil
+	}
+	if s.closeAll != nil {
+		if s.ownClient {
+			s.closeAll()
+		}
+		s.closeAll = nil
 	}
 	return s.shellBase.Close()
 }

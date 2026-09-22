@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"io"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync"
@@ -117,6 +118,7 @@ func (r *Reader) WriteRaw(b []byte) error {
 		_, _ = r.cfg.RawIn.Write(b)
 	}
 	if _, err := r.in.Write(b); err != nil {
+		r.logf(slog.LevelWarn, "shell.write failed", "err", err)
 		return &Error{Op: OpWrite, Err: err}
 	}
 	return nil
@@ -232,6 +234,13 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 	return r.read(ctx, stopOnPrompt, nil, onOut, interceptors...)
 }
 
+// logf 日志钩子(nil 安全)，keyValues 为 slog 属性对
+func (r *Reader) logf(level slog.Level, msg string, keyValues ...any) {
+	if r.cfg.Logger != nil {
+		r.cfg.Logger.Log(context.Background(), level, msg, keyValues...)
+	}
+}
+
 // read 读取输出；promptOverride 非 nil 时仅以该规则判定命令结束(严格模式，默认规则不参与)
 func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *regexp.Regexp, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	// 单读者守卫：并发 Read 会互相争抢输出导致串流错乱
@@ -247,6 +256,12 @@ func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *re
 			return err
 		}
 	}
+
+	r.mu.Lock()
+	lastCmd := r.lastCmd
+	r.mu.Unlock()
+	start := time.Now()
+	r.logf(slog.LevelDebug, "shell.read start", "cmd", lastCmd)
 
 	if r.lo != nil {
 		r.lo.SetOut(onOut)
@@ -276,6 +291,7 @@ func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *re
 				cmd := r.lastCmd
 				r.mu.Unlock()
 				if de := detectErrors(r.errorPatterns, cmd, lines); de != nil {
+					r.logf(slog.LevelWarn, "shell.device_error", "pattern", de.PatternName, "cmd", de.Cmd, "line", de.Line)
 					if r.cfg.ErrorPolicy == ErrorCollect {
 						devErrs = append(devErrs, de)
 					} else { // ErrorFail
@@ -416,6 +432,12 @@ loop:
 			errs[i] = de
 		}
 		err = &Error{Op: OpRead, Err: errors.Join(errs...)}
+	}
+
+	if err != nil {
+		r.logf(slog.LevelWarn, "shell.read done", "cmd", lastCmd, "duration", time.Since(start), "err", err)
+	} else {
+		r.logf(slog.LevelDebug, "shell.read done", "cmd", lastCmd, "duration", time.Since(start))
 	}
 
 	if r.lo != nil {

@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/3th1nk/easyshell/v2/filter"
 	"io"
+	"log/slog"
 	"regexp"
 	"time"
 )
@@ -72,6 +73,9 @@ type Config struct {
 	LazyOutSize int
 	// Stderr stderr 处理策略，默认 StderrError
 	Stderr StderrPolicy
+	// Logger 结构化日志钩子(nil 关闭日志)。记录会话关键事件：
+	//	读取开始/结束(含命令与耗时)、设备错误命中、写入失败等，接入运维平台日志体系用
+	Logger *slog.Logger
 	// ErrorPatterns 命令输出的错误检测规则。
 	//	nil 时使用内置默认规则(仅命令解析器错误，见 DefaultErrorPatterns；
 	//	登录横幅不参与检测)；

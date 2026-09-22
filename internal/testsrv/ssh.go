@@ -96,6 +96,38 @@ func (s *SshServer) handleConn(conn net.Conn, config *ssh.ServerConfig) {
 	go ssh.DiscardRequests(reqs)
 
 	for newChannel := range chans {
+		// direct-tcpip：跳板转发(本服务作为跳板机时)
+		if newChannel.ChannelType() == "direct-tcpip" {
+			var p struct {
+				Addr     string
+				Port     uint32
+				OrigIP   string
+				OrigPort uint32
+			}
+			if err := ssh.Unmarshal(newChannel.ExtraData(), &p); err != nil {
+				_ = newChannel.Reject(ssh.ConnectionFailed, "bad payload")
+				continue
+			}
+			upstream, err := net.Dial("tcp", fmt.Sprintf("%s:%d", p.Addr, p.Port))
+			if err != nil {
+				_ = newChannel.Reject(ssh.ConnectionFailed, "dial failed: "+err.Error())
+				continue
+			}
+			ch, chReqs, err := newChannel.Accept()
+			if err != nil {
+				_ = upstream.Close()
+				continue
+			}
+			go func() {
+				defer upstream.Close()
+				defer ch.Close()
+				go func() { _, _ = io.Copy(upstream, ch) }()
+				_, _ = io.Copy(ch, upstream)
+			}()
+			go ssh.DiscardRequests(chReqs)
+			continue
+		}
+
 		if newChannel.ChannelType() != "session" {
 			_ = newChannel.Reject(ssh.UnknownChannelType, "unsupported channel type")
 			continue

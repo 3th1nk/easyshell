@@ -9,6 +9,10 @@
 * 延迟返回输出内容(按时间间隔或累计大小)；stderr 三种处理策略(Error/Output/Ignore)
 * 录制原始输入输出并回放(record 包，二进制帧格式，含时间戳与方向)
 * 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
+* 跳板机/堡垒机：多级代理链(SshConfig.Proxy)；SSH Agent 认证(UseAgent)
+* 命令级提示符覆盖(RunPrompt)：提示符动态变化场景严格匹配；配置模式状态推断(InConfigMode)
+* 结构化日志钩子(Config.Logger *slog.Logger)：会话关键事件接入运维日志体系
+* 多命令脚本(RunScript)：顺序执行、失败定位到命令
 * SFTP 文件上传(临时文件+rename 原子写)/下载/递归删除
 * 并发安全：读取过程中可并发查询 Prompt/IsPrompt；并发 Read 被拒绝并返回明确错误
 * 离线可测试：内置 mock SSH/Telnet/SFTP 服务(internal/testsrv)
@@ -63,6 +67,28 @@ go get github.com/3th1nk/easyshell/v2
         // 配置模式下继续执行命令...
         err = s.Run(ctx, "quit", nil)
     }
+
+- 跳板机/堡垒机(多级链)
+```go
+    s, err := easyshell.NewSshShell(easyshell.SshConfig{
+        Credential: targetCred,
+        Proxy: &easyshell.ProxyConfig{ // 多级链: Proxy 自身可再指定 Proxy
+            Credential: bastionCred,
+        },
+    })
+```
+
+- 多命令脚本(失败定位到命令)
+```go
+    err = easyshell.RunScript(ctx, s, func(cmd string, lines []string) {
+        fmt.Println("==", cmd)
+    }, "screen-length disable", "display version", "display clock")
+```
+
+- 录制导出为 asciinema(可直接用播放器回放)
+```go
+    record.DumpAsciinema(recFile, os.Stdout) // 输入帧不导出，防敏感信息泄露
+```
 
 - 设备错误检测(输出中的命令解析错误自动失败)
 ```go
