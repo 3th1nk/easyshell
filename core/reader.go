@@ -18,6 +18,7 @@ var defaultInterceptors = []interceptor.Interceptor{
 }
 
 // promptMatchWindow 提示符/拦截器匹配只扫描行的尾部窗口(从行边界截断)。
+//
 //	匹配规则均为尾部锚定，超大行(如防火墙的超长配置行，可达 16MB+)只需匹配尾部，
 //	避免每个数据块都对整行做正则匹配的 O(N²) 开销
 const promptMatchWindow = 8 * 1024
@@ -46,6 +47,7 @@ type Reader struct {
 }
 
 // NewReader 创建读写器。in 为命令写入端；out 为输出流；errStream 为 stderr 流(可为 nil)。
+//
 //	cfg 以值传入并使用内部副本，不会修改调用方传入的结构体。
 func NewReader(in io.Writer, out, errStream io.Reader, cfg Config) *Reader {
 	cfg = cfg.normalize()
@@ -66,6 +68,7 @@ func NewReader(in io.Writer, out, errStream io.Reader, cfg Config) *Reader {
 }
 
 // Close 标记关闭(幂等)，冲刷延迟输出。
+//
 //	底层连接/进程的关闭由上层 Shell 负责，关闭后 Write 返回 ErrClosed，Read 返回 ErrClosed
 func (r *Reader) Close() error {
 	r.closeOnce.Do(func() {

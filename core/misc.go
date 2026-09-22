@@ -35,6 +35,7 @@ func trimEmptyLines(a []string) []string {
 }
 
 // tailWindow 返回字符串尾部窗口内的内容(从行边界开始截断)。
+//
 //	提示符/拦截器的匹配规则均为尾部锚定，对超大行(如防火墙的超长配置行)只需匹配尾部窗口，
 //	避免每个数据块都对整行做正则匹配的 O(N²) 开销
 func tailWindow(s string, limit int) string {

@@ -10,6 +10,7 @@ import (
 )
 
 // newFilterChain 构建过滤管道：自定义 Filter(可选) 串联在内置管道之前。
+//
 //	每个 stream 使用独立的内置管道实例，避免状态串扰
 func newFilterChain(cfg Config) filter.Filter {
 	var opts filter.Options
@@ -28,6 +29,7 @@ func newFilterChain(cfg Config) filter.Filter {
 // stream 单 goroutine 驱动的输出流：读取原始字节 → 录制 → 过滤 → 拆行 → 逐行解码。
 //
 // 只解码完整行：不完整的尾行由过滤器保持(Pending)，直到遇到 \n 才解码，
+//
 //	因此多字节字符跨网络分包不会被截断(前提：编码的多字节字符不含 0x0A，见 Config.Decoder 契约)。
 type stream struct {
 	src     io.Reader
@@ -36,11 +38,11 @@ type stream struct {
 	decoder func(b []byte) ([]byte, error)
 	strip   bool // 是否剔除解码后的 U+FFFD 替换字符
 
-	fltMu  sync.Mutex   // 保护 flt：Push 在读 goroutine，DropPending 可能在 Reader goroutine
-	mu     sync.Mutex   // 保护以下字段
-	lines  []string     // 已完成行(待消费)
-	remain string       // 未完成行(Pending)的解码缓存
-	err    error        // 读错误
+	fltMu  sync.Mutex    // 保护 flt：Push 在读 goroutine，DropPending 可能在 Reader goroutine
+	mu     sync.Mutex    // 保护以下字段
+	lines  []string      // 已完成行(待消费)
+	remain string        // 未完成行(Pending)的解码缓存
+	err    error         // 读错误
 	notify chan struct{} // 数据通知(容量1，合并通知)
 }
 
@@ -64,6 +66,7 @@ func newStream(src io.Reader, cfg Config) *stream {
 func (s *stream) Notify() <-chan struct{} { return s.notify }
 
 // PopLines 消费缓冲的行；回调返回 true 表示丢弃当前未完成行。
+//
 //	数据耗尽时返回流错误(如 EOF)，让上层感知流结束(ReadAll 依赖此退出)
 func (s *stream) PopLines(f func(lines []string, remaining string) (dropRemaining bool)) (popped int, err error) {
 	s.mu.Lock()
