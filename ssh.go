@@ -272,6 +272,8 @@ func cfgOf(cred SshCredential) ssh.Config {
 //
 //	登录横幅(欢迎信息、密码过期提示等)会被自动消费，通过 HeadLine() 获取。
 func NewSshShell(cfg SshConfig) (*SshShell, error) {
+	cfg = cfg.normalize()
+
 	rec, err := wireRecord(cfg.Record, &cfg.Config, record.Meta{
 		Host: cfg.Credential.Host, Port: util.IfEmptyInt(cfg.Credential.Port, 22),
 		Protocol: "ssh", User: cfg.Credential.User,
@@ -288,27 +290,13 @@ func NewSshShell(cfg SshConfig) (*SshShell, error) {
 		return nil, err
 	}
 
-	shell, err := newSshShellFromClient(client, cfg)
-	if err != nil {
-		closeAll()
-		if rec != nil {
-			_ = rec.Close()
-		}
-		return nil, err
-	}
-	shell.ownClient = true
-	shell.closeAll = closeAll
-	shell.recorder = rec
-	return shell, nil
-}
-
-// newSshShellFromClient 基于已有的 SSH 连接创建 Shell。
-func newSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error) {
-	cfg = cfg.normalize()
-
 	addr := client.RemoteAddr().String()
 	session, err := client.NewSession()
 	if err != nil {
+		if rec != nil {
+			_ = rec.Close()
+		}
+		closeAll()
 		return nil, &core.Error{Op: core.OpSession, Addr: addr, Err: err}
 	}
 
@@ -319,6 +307,10 @@ func newSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error)
 		ssh.TTY_OP_OSPEED: 14400,
 	}); err != nil {
 		_ = session.Close()
+		closeAll()
+		if rec != nil {
+			_ = rec.Close()
+		}
 		return nil, &core.Error{Op: core.OpTerm, Addr: addr, Err: err}
 	}
 
@@ -328,6 +320,10 @@ func newSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error)
 
 	if err = session.Shell(); err != nil {
 		_ = session.Close()
+		closeAll()
+		if rec != nil {
+			_ = rec.Close()
+		}
 		return nil, &core.Error{Op: core.OpShell, Addr: addr, Err: err}
 	}
 
@@ -355,7 +351,14 @@ func newSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error)
 	}, RunOptions{Interceptors: []interceptor.Interceptor{interceptor.AlwaysNo()}})
 	headLine = trimEmptyLines(headLine)
 
-	return &SshShell{shellBase: shellBase{rw: r}, client: client, session: session, headLine: headLine}, nil
+	return &SshShell{
+		shellBase: shellBase{rw: r, recorder: rec},
+		client:    client,
+		session:   session,
+		closeAll:  closeAll,
+		ownClient: true,
+		headLine:  headLine,
+	}, nil
 }
 
 // SshShell SSH 交互式 Shell

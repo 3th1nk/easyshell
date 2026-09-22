@@ -17,7 +17,7 @@
 ## v2.1.0
 
 ### 新增
-- 设备错误检测：内置各厂商命令解析错误模式，输出命中即返回 `*core.DeviceError`，Fail/Collect 两种策略，登录横幅不参与检测
+- 设备错误检测：内置各厂商命令解析错误模式，输出命中即返回 `*easyshell.DeviceError`，Fail/Collect 两种策略，登录横幅不参与检测
 - 命令级提示符覆盖(RunOptions.Prompt)与配置模式推断(InConfigMode)
 - 跳板机/堡垒机多级链(SshConfig.Proxy)，SSH Agent 认证(SshCredential.UseAgent)
 - 长连接保活(Config.KeepAlive)：周期探测+失败阈值+死亡回调

@@ -34,11 +34,11 @@
 //
 // # 使用约束
 //
-//   - 同一 Shell 同一时刻只允许一个读操作(并发 Read/Run 返回 core.ErrConcurrentRead)；
+//   - 同一 Shell 同一时刻只允许一个读操作(并发 Read/Run 返回 ErrConcurrentRead)；
 //   - 读取过程中可并发调用 Prompt/IsPrompt/InConfigMode；
 //   - onOut 回调在读取流程中同步调用：阻塞它会推迟读取与提示符判定
 //     (设备可能在等待拦截器应答)，需要重处理时请在回调内自行异步化；
-//   - Close 幂等，调用后所有操作返回 core.ErrClosed。
+//   - Close 幂等，调用后所有操作返回 ErrClosed。
 //
 // # 包结构
 //

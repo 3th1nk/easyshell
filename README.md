@@ -8,12 +8,11 @@
 * 内置拦截器：密码交互(Password)、选项交互(Yes/No)、网络设备自动翻页(More)、继续执行(Continue)；拦截器命中后先丢弃未完成行再写入应答，无内容粘连
 * 延迟返回输出内容(按时间间隔或累计大小)；stderr 三种处理策略(Error/Output/Ignore)
 * 录制原始输入输出并回放(record 包，二进制帧格式，含时间戳与方向)
-* 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
+* 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *easyshell.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
 * 精简的接口参数：每次调用的可选项(提示符覆盖/拦截器)统一为 RunOptions 可变参数结构体
 * 跳板机/堡垒机：多级代理链(SshConfig.Proxy)；SSH Agent 认证(UseAgent)
 * 厂商驱动(VendorProfile)：禁用分页/保存配置(含确认交互)/错误模式整合，支持自定义厂商注册
 * 长连接保活(Config.KeepAlive)：周期探测+失败阈值+死亡回调，防空闲断连
-* 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
 * 命令级提示符覆盖(RunOptions.Prompt)：提示符动态变化场景严格匹配；配置模式状态推断(InConfigMode)
 * 结构化日志钩子(Config.Logger *slog.Logger)：会话关键事件接入运维日志体系
 * 多命令脚本(RunScript)：顺序执行、失败定位到命令
@@ -114,7 +113,7 @@ go get github.com/3th1nk/easyshell/v2
 ```go
     s, _ := easyshell.NewSshShell(easyshell.SshConfig{
         Credential: cred,
-        Config: easyshell.Config{KeepAlive: &core.KeepAliveConfig{
+        Config: easyshell.Config{KeepAlive: &easyshell.KeepAliveConfig{
             Interval: 30 * time.Second, // SSH keepalive 请求由库注入
             OnDead:   func(err error) { /* 重连/告警 */ },
         }},
@@ -140,16 +139,16 @@ go get github.com/3th1nk/easyshell/v2
     // 默认开启：命中 H3C/Cisco/华为/Juniper 命令解析错误即返回 *core.DeviceError
     //  (登录横幅不参与检测，登录即输出错误样式信息的设备不会误报)
     err = s.Run(ctx, "disp lay ver", onOut)
-    var de *core.DeviceError
+    var de *easyshell.DeviceError
     if errors.As(err, &de) {
         fmt.Println("命令错误:", de.Cmd, de.Line, de.PatternName)
     }
 
     // 策略与规则可配(Config)：
     cfg.ErrorPolicy = easyshell.ErrorCollect       // 命中不中断，结束时聚合返回
-    cfg.ErrorPatterns = append(core.DefaultErrorPatterns(),
-        core.NewErrorPattern("my-error", `(?i)^my custom error`))
-    cfg.ErrorPatterns = []*core.ErrorPattern{}     // 显式关闭检测
+    cfg.ErrorPatterns = append(easyshell.DefaultErrorPatterns(),
+        easyshell.NewErrorPattern("my-error", `(?i)^my custom error`))
+    cfg.ErrorPatterns = []*easyshell.ErrorPattern{} // 显式关闭检测
 ```
 
 - 禁用分页(获取长配置推荐先禁用分页，比 More 逐页应答更快)
@@ -182,7 +181,7 @@ go get github.com/3th1nk/easyshell/v2
         record.Meta{Host: host, Protocol: "ssh"}, record.Options{CaptureInput: true})
     _ = easyshell.Config{RawOut: rec, RawIn: rec.Input()}
 
-    // 回放(按时序/倍速)，或 AsReader 接 core.Reader 做交互式重放
+    // 回放(按时序/倍速)，或经交互式重放接入 Shell(见 record 包文档)
     player, _ := record.Open("session.eshrec")
     _ = player.Play(ctx, os.Stdout)
 ```

@@ -24,8 +24,9 @@ type TelnetConfig struct {
 	SuppressGA bool
 }
 
-// NewTelnetShell 创建 Telnet Shell 并完成登录。
+// NewTelnetShell 创建 Telnet Shell 并完成登录(录制随 Shell.Close 自动收尾)。
 func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
+
 	rec, err := wireRecord(cfg.Record, &cfg.Config, record.Meta{
 		Host: cfg.Credential.Host, Port: util.IfEmptyInt(cfg.Credential.Port, 23),
 		Protocol: "telnet", User: cfg.Credential.User,
@@ -49,21 +50,6 @@ func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
 		return nil, err
 	}
 
-	shell, err := newTelnetShellFromClient(client, cfg)
-	if err != nil {
-		_ = client.Close()
-		if rec != nil {
-			_ = rec.Close()
-		}
-		return nil, err
-	}
-	shell.ownClient = true
-	shell.recorder = rec
-	return shell, nil
-}
-
-// NewTelnetShellFromClient 基于已有的 telnet 连接创建 Shell(调用方自行管理连接的关闭)。
-func newTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetShell, error) {
 	// 保活动作：telnet NOP 命令
 	if cfg.KeepAlive != nil && cfg.KeepAlive.Interval > 0 {
 		send := cfg.KeepAlive.Send
@@ -77,6 +63,8 @@ func newTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetS
 	}
 
 	r := core.NewReader(client, client, nil, cfg.Config)
+
+	// 触发一次回车，读取当前提示符(避免首次 Run 把提示符拼进输出)
 	_ = r.Write("")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -84,8 +72,9 @@ func newTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetS
 
 	headLine := trimEmptyLines(strings.Split(client.Welcome(), "\n"))
 	return &TelnetShell{
-		shellBase: shellBase{rw: r},
+		shellBase: shellBase{rw: r, recorder: rec},
 		client:    client,
+		ownClient: true,
 		headLine:  headLine,
 	}, nil
 }
