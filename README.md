@@ -184,27 +184,17 @@ EASYSHELL_TEST_H3C=admin:password@192.0.2.4
 
 测试分层：`TestMock*`(离线，默认执行) / `TestDevice_*`(真机，需凭据)。
 
-## v1 → v2 迁移对照
+## 文档
 
-| v1 | v2 |
-|---|---|
-| `NewSshShell(&SshShellConfig{Credential: &cred})` | `NewSshShell(SshConfig{Credential: cred})`(凭证为值类型) |
-| `NewCmdShell("cmd")` | `NewCmdShell(ctx, CmdConfig{Command: "cmd"})`(返回 error，空命令报错) |
-| `s.ReadToEndLine(30*time.Second, f, its...)` | `s.ReadUntilPrompt(ctx, f, its...)`(超时用 `context.WithTimeout`) |
-| `s.ReadAll(30*time.Second, f, its...)` | `s.ReadAll(ctx, f, its...)` |
-| `s.Write(cmd)` + `s.Read(ctx, true, f, its...)` | 保持不变；或直接用 `s.Run(ctx, cmd, f, its...)` |
-| `s.IsEndLine(s)` | `s.IsPrompt(s)` |
-| `s.Stop()` | 删除，统一为 `Close()`(幂等) |
-| `core.IsTimeout(err)` / `err.(*core.Error).Timeout()` | 仅 `core.IsTimeout(err)`(方法套已删除)；新增 `core.OpOf(err)` |
-| telnet 裸错误 | `core.Error{Op: dial/auth/read}` 可程序化判断 |
-| `replay.NewWriter(path)`(吞错误返回 nil) | `record.NewFileWriter(path, meta, opts...)`(返回 error)，二进制帧格式 |
-| `filter.NewDefaultFilter(opt)` / `filter.IFilter.Do` | `filter.NewFilter(opts ...Options)` / `filter.FilterFunc` 或实现 `filter.Filter`(有状态) |
-| `filter.CrTrimModeOnlyCr` | `filter.CRTrimDropCR` |
-| `sftp.Upload(l, r, true)` | `s.SftpUpload(l, r, SftpOptions{Force: true})`(上传原子化) |
-| `telnet.ClientConfig.UserRegex/PassRegex/PromptRegex` | `telnet.Config.LoginUserRegex/LoginPassRegex/LoginPromptRegex` |
-| `telnet.Client.ReadUtil/ReadUtil2/SkipUtil*` | `ReadUntil/SkipUntil`(其余删除或私有化) |
-| `telnet.Client.FirstPrompt()` | `telnet.Client.Prompt()` |
-| 内嵌 `shell.ReadWriter`(透传使用) | 不再暴露；`Shell` 接口覆盖原有用法 |
+- [v1 → v2 迁移指南](docs/MIGRATION.md)
+- [路线图](docs/ROADMAP.md)
+- [更新日志](CHANGELOG.md)
+
+## 注意事项
+
+- `onOut` 回调在读取流程中**同步调用**：阻塞它会推迟读取与提示符判定(设备可能在等待拦截器应答)。
+  需要重处理时请在回调内自行异步化(缓冲 + goroutine)，丢弃/堆积策略由业务决定
+- 同一 Shell 并发 Read 会返回 `core.ErrConcurrentRead`(读取过程中可并发查询 Prompt/IsPrompt/InConfigMode)
 
 ## 已知限制
 

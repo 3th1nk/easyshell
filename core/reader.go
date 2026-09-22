@@ -176,7 +176,10 @@ func firstOptOf(opts []RunOptions) RunOptions {
 	return RunOptions{}
 }
 
-// ReadUntilPrompt 读取输出直到提示符(等价于 Read(ctx, true, ...))
+// ReadUntilPrompt 读取输出直到提示符(等价于 Read(ctx, true, ...))。
+//
+//	onOut 在读取流程中同步调用：阻塞它会推迟读取与提示符判定
+//	(设备可能在等待拦截器应答导致输出停住)，需要重处理时请在回调内自行异步化。
 func (r *Reader) ReadUntilPrompt(ctx context.Context, onOut func(lines []string), opts ...RunOptions) error {
 	return r.read(ctx, true, firstOptOf(opts).Prompt, onOut, firstOptOf(opts).Interceptors)
 }

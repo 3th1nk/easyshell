@@ -1,17 +1,20 @@
 // Package easyshell 支持本地执行命令、通过 SSH/TELNET 协议在主机与网络设备上远程执行交互式命令。
 //
-// # 特性
+// # 能力概览
 //
 //   - 统一的 Shell 接口抽象(CmdShell/SshShell/TelnetShell 可互换使用)
-//   - 自定义提示符匹配规则，默认规则支持自动纠正(AutoPrompt)
-//   - 默认自动识别 GB18030 编码并转换为 UTF8，支持自定义解码器
-//   - 内置字符过滤器：退格、CRLF 归一化、ANSI/ECMA-48 转义序列剔除(有状态，跨网络分包安全)
-//   - 内置拦截器：密码交互(Password)、选项交互(Yes/No)、网络设备自动翻页(More)、继续执行(Continue)
-//   - 延迟返回输出内容(按时间间隔或累计大小)
-//   - 录制原始输入输出并回放(record 包)
-//   - SFTP 文件上传(原子写入)/下载/递归删除
+//   - 提示符匹配：默认宽松规则兜底 + 命令级严格覆盖(RunOptions.Prompt) + 自动纠正(AutoPrompt)
+//   - 有状态字符过滤器：ANSI/ECMA-48 转义序列跨网络分包安全剔除、退格按 rune 回退、
+//     擦除序列实时作用于当前行、CRLF 归一化(含 H3C \r\r\n)
+//   - 拦截器：密码交互、选项应答、网络设备自动翻页(More)、继续执行(Continue)、自定义扩展
+//   - 设备错误检测：各厂商命令解析错误命中即报，Fail/Collect 两种策略
+//   - 编码：默认 GB18030 自动识别转 UTF8；只解码完整行，多字节字符跨分包不被截断
+//   - 连接：SSH 直连/多级跳板链、密码/密钥/Agent 认证、主机指纹校验、长连接保活
+//   - 文件：SFTP 上传(原子上传)/下载/递归删除，支持传输校验与进度
+//   - 录制回放：原始输入输出二进制录制、asciinema 导出、交互式重放
+//   - 可观测：结构化日志钩子(slog)、超大输出尾部窗口匹配(16MB+ 单行无线性退化)
 //
-// # 基本用法
+// # 快速上手
 //
 //	s, err := easyshell.NewSshShell(easyshell.SshConfig{
 //	    Credential: easyshell.SshCredential{Host: "192.0.2.1", User: "admin", Password: "***"},
@@ -29,9 +32,13 @@
 //	    }
 //	})
 //
-// # 约束
+// # 使用约束
 //
 //   - 同一 Shell 同一时刻只允许一个读操作(并发 Read/Run 返回 core.ErrConcurrentRead)；
-//   - 所有阻塞方法接受 context 控制取消/超时；
-//   - 参数风格：构造用 Config 结构体按值传入(零值合法)，调用级可选项用 Options 结构体可变参数。
+//   - 读取过程中可并发调用 Prompt/IsPrompt/InConfigMode；
+//   - onOut 回调在读取流程中同步调用：阻塞它会推迟读取与提示符判定
+//     (设备可能在等待拦截器应答)，需要重处理时请在回调内自行异步化；
+//   - Close 幂等，调用后所有操作返回 core.ErrClosed。
+//
+// 更多内容：README(特性与示例)、docs/MIGRATION.md(v1→v2 迁移)、docs/ROADMAP.md(路线图)。
 package easyshell

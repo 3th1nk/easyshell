@@ -19,6 +19,10 @@ type Shell interface {
 	WriteRaw(p []byte) error
 
 	// ReadUntilPrompt 读取输出直到提示符(提示符行默认不作为输出返回)
+	//
+	//	onOut 在读取流程中同步调用：阻塞它会推迟读取与提示符判定
+	//	(设备可能在等待拦截器应答导致输出停住)，需要重处理时请在回调内自行异步化。
+	//	以下 Read/Run 系列方法的 onOut 语义相同。
 	ReadUntilPrompt(ctx context.Context, onOut func(lines []string),
 		opts ...RunOptions) error
 	// ReadAll 读取全部输出直到流结束
