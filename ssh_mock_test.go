@@ -11,6 +11,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -272,4 +274,64 @@ func TestMockSshShell_ErrorDetect(t *testing.T) {
 	var de *core.DeviceError
 	assert.True(t, errors.As(err, &de), "应返回DeviceError, got=%v", err)
 	assert.Contains(t, de.Line, "Unrecognized command")
+}
+
+// TestMockSshShell_RunPrompt 端到端：命令后提示符动态变化的场景(进入/退出配置模式)
+func TestMockSshShell_RunPrompt(t *testing.T) {
+	srv := testsrv.NewSshServer(t)
+
+	// 自定义会话：conf t 后提示符变为 <mock>(config)#，exit 后恢复
+	srv.Session = func(ss *testsrv.SshSession) {
+		write := func(str string) { _, _ = ss.Stdout.Write([]byte(str)) }
+		prompt := srv.Prompt
+		write(prompt)
+		buf := make([]byte, 4096)
+		for {
+			n, err := ss.Stdin.Read(buf)
+			if err != nil {
+				return
+			}
+			cmd := strings.TrimSpace(string(buf[:n]))
+			switch cmd {
+			case "conf t":
+				prompt = "<mock>(config)# "
+				write("Enter configuration commands\n" + prompt)
+			case "exit":
+				prompt = srv.Prompt
+				write(prompt)
+			default:
+				write("out:" + cmd + "\n" + prompt)
+			}
+		}
+	}
+
+	s, err := NewSshShell(SshConfig{
+		Credential: SshCredential{Host: hostOf(srv.Addr), Port: portOf(srv.Addr), User: srv.User, Password: srv.Password, Timeout: 3 * time.Second},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	assert.False(t, s.InConfigMode())
+
+	// 进入配置模式：以新提示符严格匹配(默认宽松规则虽也能匹配，但这里验证指定规则的语义)
+	configPrompt := regexp.MustCompile(`<mock>\(config\)#\s*$`)
+	assert.NoError(t, s.RunPrompt(ctx, "conf t", configPrompt, nil))
+	assert.True(t, s.InConfigMode())
+	assert.Equal(t, "<mock>(config)#", strings.TrimSpace(s.Prompt()))
+
+	// 配置模式下执行命令
+	var lines []string
+	assert.NoError(t, s.Run(ctx, "description test", func(arr []string) {
+		lines = append(lines, arr...)
+	}))
+	assert.Equal(t, []string{"out:description test"}, lines)
+
+	// 退出配置模式
+	assert.NoError(t, s.RunPrompt(ctx, "exit", regexp.MustCompile(`<mock>#\s*$`), nil))
+	assert.False(t, s.InConfigMode())
 }

@@ -54,6 +54,16 @@ go get github.com/3th1nk/easyshell/v2
     _, err = easyshell.ExitCode(ctx, s) // echo $? 获取上一条命令退出码
 ```
 
+- 提示符动态变化的场景(进入配置模式、su/sudo)：命令级提示符覆盖 + 会话状态推断
+```go
+    // RunPrompt 指定本次命令的结束提示符(严格匹配，默认宽松规则不参与)：
+    //  既避免宽松规则误匹配输出，也避免变化后的新提示符匹配不到而超时
+    err = s.RunPrompt(ctx, "system-view", regexp.MustCompile(`\[SW03[\]-][^>]*>\s*$`), onOut)
+    if s.InConfigMode() { // 启发式：H3C/华为 [name] 视图、Cisco (config) 样式
+        // 配置模式下继续执行命令...
+        err = s.Run(ctx, "quit", nil)
+    }
+
 - 设备错误检测(输出中的命令解析错误自动失败)
 ```go
     // 默认开启：命中 H3C/Cisco/华为/Juniper 命令解析错误即返回 *core.DeviceError

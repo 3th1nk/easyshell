@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/3th1nk/easyshell/v2/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
+	"regexp"
 )
 
 // Shell 是 CmdShell/SshShell/TelnetShell 的统一抽象，面向"命令交互"场景。
@@ -34,11 +35,22 @@ type Shell interface {
 	// RunAll 写入命令并读取全部输出直到流结束，等价于 Write + ReadAll
 	RunAll(ctx context.Context, cmd string, onOut func(lines []string),
 		interceptors ...interceptor.Interceptor) error
+	// RunPrompt 写入命令并以指定的提示符规则判定命令结束(严格模式)。
+	//
+	//	适用于执行后提示符会变化的场景(网络设备进入/退出配置模式、主机 su/sudo、
+	//	进入子命令环境等)：指定 prompt 后本次读取仅以该规则匹配结束——
+	//	默认宽松规则不参与，避免其误匹配输出内容，也避免变化后的提示符匹配不到而超时。
+	//	命令结束后通过 Prompt() 获取新的提示符。
+	RunPrompt(ctx context.Context, cmd string, prompt *regexp.Regexp, onOut func(lines []string),
+		interceptors ...interceptor.Interceptor) error
 
 	// Prompt 返回最近一次匹配到的提示符(读取过程中可并发调用)
 	Prompt() string
 	// IsPrompt 判断给定内容是否命中提示符规则(并发安全)
 	IsPrompt(s string) bool
+	// InConfigMode 基于最近匹配的提示符推断是否处于配置模式(启发式，
+	//	覆盖 H3C/华为方括号视图与 Cisco (config) 样式；Linux 等返回 false)
+	InConfigMode() bool
 
 	// Close 关闭(幂等)
 	Close() error
@@ -72,6 +84,11 @@ func (b shellBase) RunAll(ctx context.Context, cmd string, onOut func(lines []st
 	interceptors ...interceptor.Interceptor) error {
 	return b.rw.RunAll(ctx, cmd, onOut, interceptors...)
 }
+func (b shellBase) RunPrompt(ctx context.Context, cmd string, prompt *regexp.Regexp, onOut func(lines []string),
+	interceptors ...interceptor.Interceptor) error {
+	return b.rw.RunPrompt(ctx, cmd, prompt, onOut, interceptors...)
+}
 func (b shellBase) Prompt() string         { return b.rw.Prompt() }
 func (b shellBase) IsPrompt(s string) bool { return b.rw.IsPrompt(s) }
+func (b shellBase) InConfigMode() bool     { return b.rw.InConfigMode() }
 func (b shellBase) Close() error           { return b.rw.Close() }

@@ -131,6 +131,17 @@ func (r *Reader) Prompt() string {
 
 // IsPrompt 判断给定内容是否命中提示符规则(并发安全，等价于 v1 的 IsEndLine)
 func (r *Reader) IsPrompt(s string) bool {
+	return r.isPrompt(s, nil)
+}
+
+// isPrompt 提示符判定；promptOverride 非 nil 时严格模式：仅以该规则匹配
+//
+//	(默认规则与其误报排除规则均不参与——调用方明确指定的规则无需兜底，也避免宽松规则误匹配输出)
+func (r *Reader) isPrompt(s string, promptOverride *regexp.Regexp) bool {
+	if promptOverride != nil {
+		return promptOverride.MatchString(s)
+	}
+
 	r.mu.Lock()
 	regexArr := r.promptRegex
 	r.mu.Unlock()
@@ -170,6 +181,45 @@ func (r *Reader) Run(ctx context.Context, cmd string, onOut func(lines []string)
 	return r.ReadUntilPrompt(ctx, onOut, interceptors...)
 }
 
+// RunPrompt 写入命令并以指定的提示符规则判定命令结束。
+//
+//	适用于执行后提示符会变化的场景(网络设备进入/退出配置模式、主机 su/sudo、
+//	进入子命令环境等)：指定 prompt 后本次读取仅以该规则匹配结束——
+//	默认宽松规则不参与，避免其误匹配输出内容，也避免变化后的提示符匹配不到而超时。
+//	命令结束后通过 Prompt() 获取新的提示符。
+func (r *Reader) RunPrompt(ctx context.Context, cmd string, prompt *regexp.Regexp, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
+	if prompt == nil {
+		return &Error{Op: OpRead, Err: errors.New("prompt is nil (use Run for default prompt matching)")}
+	}
+	if err := r.Write(cmd); err != nil {
+		return err
+	}
+	return r.read(ctx, true, prompt, onOut, interceptors...)
+}
+
+// InConfigMode 基于最近匹配的提示符推断是否处于配置模式(启发式)：
+//
+//   - H3C/华为：方括号系统视图样式 [name] / [name-subview] → true(与用户视图 <name> 区分)
+//   - Cisco：提示符包含 "(config" → true
+//   - Linux/其他：false
+//
+// 注意这是启发式判断，特殊定制的提示符可能不准确。
+func (r *Reader) InConfigMode() bool {
+	p := strings.TrimSpace(r.Prompt())
+	if p == "" {
+		return false
+	}
+	// Cisco 系：SW01(config)# / SW01(config-if)#
+	if strings.Contains(p, "(config") {
+		return true
+	}
+	// H3C/华为系：[SW03] / [SW03-vlan1](系统视图与子视图)，排除 Linux 的 [root@host ~] 样式
+	return configModeBracketRegex.MatchString(p)
+}
+
+// configModeBracketRegex H3C/华为配置模式提示符：方括号包裹、不含空格/@/~(排除Linux的 [root@host ~])
+var configModeBracketRegex = regexp.MustCompile(`^\[[^@~\s\]]{1,64}(-[^@~\s\]]+)*\]`)
+
 // RunAll 写入命令并读取全部输出直到流结束，等价于 Write + ReadAll
 func (r *Reader) RunAll(ctx context.Context, cmd string, onOut func(lines []string), interceptors ...interceptor.Interceptor) error {
 	if err := r.Write(cmd); err != nil {
@@ -179,6 +229,11 @@ func (r *Reader) RunAll(ctx context.Context, cmd string, onOut func(lines []stri
 }
 
 func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
+	return r.read(ctx, stopOnPrompt, nil, onOut, interceptors...)
+}
+
+// read 读取输出；promptOverride 非 nil 时仅以该规则判定命令结束(严格模式，默认规则不参与)
+func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *regexp.Regexp, onOut func(lines []string), interceptors ...interceptor.Interceptor) (err error) {
 	// 单读者守卫：并发 Read 会互相争抢输出导致串流错乱
 	if !r.readMu.TryLock() {
 		return &Error{Op: OpRead, Err: ErrConcurrentRead}
@@ -275,10 +330,11 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 			}
 
 			// 命令输出结束(提示符命中)
-			if r.IsPrompt(tailWindow(remaining, promptMatchWindow)) {
+			if r.isPrompt(tailWindow(remaining, promptMatchWindow), promptOverride) {
 				r.mu.Lock()
 				// 当未指定提示符规则 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
-				if len(r.promptRegex) == 0 && r.cfg.AutoPrompt {
+				//	(指定了覆盖规则时，AutoPrompt 不生效——覆盖规则由调用方负责)
+				if promptOverride == nil && len(r.promptRegex) == 0 && r.cfg.AutoPrompt {
 					if re := findPromptRegex(remaining); re != nil {
 						r.promptRegex = append(r.promptRegex, re)
 					}

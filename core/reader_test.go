@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -349,4 +350,84 @@ func utf8ToGBK(s string) []byte {
 		return []byte(s)
 	}
 	return out
+}
+
+// TestReader_RunPrompt 验证命令级提示符覆盖(严格模式)：
+//
+//	输出中存在会被宽松默认规则误匹配的行(如 "Description:")时，
+//	默认 Run 会提前误判结束；RunPrompt 指定提示符后严格匹配，直到真正的新提示符
+func TestReader_RunPrompt(t *testing.T) {
+	r, inReader, outWriter := newTestReader(defaultTestConfig())
+	defer r.Close()
+
+	// 模拟设备：执行 "conf t" 后提示符从 <SW01> 变为 (config)#，且配置输出里有以冒号结尾的行
+	go func() {
+		buf := make([]byte, 4096)
+		inConfig := false
+		for {
+			n, err := inReader.Read(buf)
+			if err != nil {
+				return
+			}
+			cmd := strings.TrimSpace(string(buf[:n]))
+			switch {
+			case cmd == "conf t":
+				inConfig = true
+				_, _ = outWriter.Write([]byte("Enter configuration commands\n(config)# "))
+			case inConfig && cmd == "exit":
+				inConfig = false
+				_, _ = outWriter.Write([]byte("<SW01>"))
+			case inConfig:
+				_, _ = outWriter.Write([]byte("Description: this line would fool loose rule\n(config)# "))
+			default:
+				_, _ = outWriter.Write([]byte("out:" + cmd + "\n<SW01>"))
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 进入配置模式：指定新提示符(严格匹配)
+	assert.NoError(t, r.RunPrompt(ctx, "conf t", regexp.MustCompile(`\(config\)#\s*$`), nil))
+	assert.True(t, r.InConfigMode(), "应识别为配置模式")
+
+	// 配置模式下的输出含 "Description:" 行——宽松规则会误匹配，严格指定提示符则不会
+	var lines []string
+	assert.NoError(t, r.RunPrompt(ctx, "description test", regexp.MustCompile(`\(config\)#\s*$`), func(arr []string) {
+		lines = append(lines, arr...)
+	}))
+	assert.True(t, hasLine(lines, "Description: this line would fool loose rule"))
+
+	// 退出配置模式
+	assert.NoError(t, r.RunPrompt(ctx, "exit", regexp.MustCompile(`<SW01>\s*$`), nil))
+	assert.False(t, r.InConfigMode())
+}
+
+// TestReader_InConfigMode 启发式的边界用例
+func TestReader_InConfigMode(t *testing.T) {
+	for _, obj := range []struct {
+		prompt string
+		want   bool
+	}{
+		{"[SW03]", true},                // H3C/华为系统视图
+		{"[SW03-vlan1]", true},          // 子视图
+		{"SW01(config)#", true},         // Cisco 配置模式
+		{"SW01(config-if)#", true},      // Cisco 子接口
+		{"[HRP_M[SW03]diagnose]", true}, // 华为主备嵌套
+		{"<SW03>", false},               // H3C/华为用户视图
+		{"SW01#", false},                // Cisco 特权模式
+		{"[root@test-01 ~]#", false},    // Linux(含@与~)
+		{"[mon@host /home/mon]", false}, // Linux(含@与空格)
+		{"root@test-01 $", false},       // Linux
+		{"", false},
+	} {
+		var r Reader
+		r.mu.Lock()
+		r.prompt = obj.prompt
+		r.mu.Unlock()
+		if got := r.InConfigMode(); got != obj.want {
+			t.Errorf("prompt=%q want=%v got=%v", obj.prompt, obj.want, got)
+		}
+	}
 }
