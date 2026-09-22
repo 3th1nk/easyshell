@@ -22,6 +22,7 @@ func (e *ScriptError) Error() string {
 func (e *ScriptError) Unwrap() error { return e.Err }
 
 // RunScript 顺序执行多条命令；任何一条失败(连接错误、超时、设备错误检测命中等)
+//
 //	立即中止并返回 *ScriptError。onOut 可为 nil，其 cmd 参数为产生该输出的命令。
 func RunScript(ctx context.Context, s Shell, onOut func(cmd string, lines []string), cmds ...string) error {
 	for i, cmd := range cmds {
