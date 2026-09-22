@@ -20,12 +20,9 @@
 
 ## 计划中
 
-### v2.2.0
-- [ ] SCP 传输兜底：老网络设备无 SFTP 子系统时的文件传输(exec 通道 + scp 协议)
-- [ ] known_hosts 集成：解析 ~/.ssh/known_hosts(含 hashed hostname)做主机密钥验证
-- [ ] filter 状态机 fuzz 测试：随机字节流属性化测试(不 panic、行完整性不变量)
-- [ ] example_test.go：pkg.go.dev 可运行示例
+### v2.3.0(候选)
 - [ ] 设备错误模式库扩充(基于真机 fixture 沉淀)
+- [ ] RunOptions 增加每命令超时(独立于 ctx)
 
 ## 远期(评估中)
 

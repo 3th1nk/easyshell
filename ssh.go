@@ -114,11 +114,16 @@ func dialSsh(cred SshCredential, proxyDialer func(network, addr string) (net.Con
 		defer func() { _ = dc.SetDeadline(time.Time{}) }()
 	}
 
+	hostKeyCallback, err := hostKeyCallbackOf(cred)
+	if err != nil {
+		return nil, &core.Error{Op: core.OpAuth, Addr: addr, Err: err}
+	}
+	sshCfg := cfgOf(cred)
 	clientConfig := &ssh.ClientConfig{
-		Config:            cfgOf(cred),
+		Config:            sshCfg,
 		User:              cred.User,
 		Auth:              sshAuthMethods(cred),
-		HostKeyCallback:   hostKeyCallbackOf(cred),
+		HostKeyCallback:   hostKeyCallback,
 		HostKeyAlgorithms: openSshHostKeyAlgorithms,
 		Timeout:           timeout,
 	}
@@ -167,11 +172,16 @@ func dialSshChain(cred SshCredential, proxy *ProxyConfig) (client *ssh.Client, c
 		defer func() { _ = dc.SetDeadline(time.Time{}) }()
 	}
 
+	hostKeyCallback, err := hostKeyCallbackOf(cred)
+	if err != nil {
+		closeProxy()
+		return nil, nil, &core.Error{Op: core.OpAuth, Addr: targetAddr, Err: err}
+	}
 	clientConfig := &ssh.ClientConfig{
 		Config:            cfgOf(cred),
 		User:              cred.User,
 		Auth:              sshAuthMethods(cred),
-		HostKeyCallback:   hostKeyCallbackOf(cred),
+		HostKeyCallback:   hostKeyCallback,
 		HostKeyAlgorithms: openSshHostKeyAlgorithms,
 		Timeout:           timeout,
 	}
@@ -233,16 +243,20 @@ func sshAgentClient(socket string) agent.Agent {
 	return nil
 }
 
-func hostKeyCallbackOf(cred SshCredential) ssh.HostKeyCallback {
+// hostKeyCallbackOf 构建主机密钥校验回调，优先级：自定义回调 → 指纹 → 不校验
+func hostKeyCallbackOf(cred SshCredential) (ssh.HostKeyCallback, error) {
+	if cred.HostKeyCallback != nil {
+		return cred.HostKeyCallback, nil
+	}
 	if cred.Fingerprint == "" {
-		return ssh.InsecureIgnoreHostKey()
+		return ssh.InsecureIgnoreHostKey(), nil
 	}
 	return func(hostname string, remote net.Addr, publicKey ssh.PublicKey) error {
 		if ssh.FingerprintSHA256(publicKey) != cred.Fingerprint {
 			return fmt.Errorf("ssh: host key fingerprint mismatch")
 		}
 		return nil
-	}
+	}, nil
 }
 
 func cfgOf(cred SshCredential) ssh.Config {

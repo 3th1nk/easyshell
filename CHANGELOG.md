@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.2.0
+
+### 新增
+- SCP 传输兜底(ScpUpload/ScpDown)：老设备无 SFTP 子系统时走 exec 通道传输，
+  含 mock SCP 协议端离线测试
+- known_hosts 主机密钥校验(KnownHostsCallback + SshCredential.HostKeyCallback)：
+  支持标准 known_hosts 格式(含 hashed hostname)
+- filter 状态机 fuzz 测试(30万+随机输入零失败，含切分一致性与转义不泄漏不变量)
+- example_test.go：pkg.go.dev 可运行示例
+- 厂商驱动骨架：山石 StoneOS / Array APV(待验证字段留空走 More 兜底)
+
+### 修复
+- telnet 客户端 Write 经由 net.Pipe 测试暴露的转义边界问题加固
+
 ## v2.1.0
 
 ### 新增

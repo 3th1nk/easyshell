@@ -1,8 +1,13 @@
 package easyshell
 
-import "time"
+import (
+	"golang.org/x/crypto/ssh"
+	"time"
+)
 
 // SshCredential SSH 登录凭证
+//
+//	注意：包含函数类型字段(HostKeyCallback)，整个结构体不可比较。
 type SshCredential struct {
 	Host               string        `json:"host"`                          // IP地址
 	Port               int           `json:"port,omitempty"`                // 端口，默认22
@@ -14,6 +19,9 @@ type SshCredential struct {
 	Timeout            time.Duration `json:"timeout,omitempty"`             // 连接超时时间，默认15秒
 	InsecureAlgorithms bool          `json:"insecure_algorithms,omitempty"` // 是否允许不安全的算法(老旧网络设备需要)
 	Fingerprint        string        `json:"fingerprint,omitempty"`         // 公钥指纹(SHA256，base64)，用于验证服务器身份
+	HostKeyCallback    ssh.HostKeyCallback `json:"-"`                       // 自定义主机密钥校验回调(优先于Fingerprint；
+	                                                                         //  可用 easyshell.KnownHostsCallback 基于
+	                                                                         //  known_hosts 文件构建，见 knownhosts.go)
 }
 
 // TelnetCredential Telnet 登录凭证

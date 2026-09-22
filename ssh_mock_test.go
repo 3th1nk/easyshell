@@ -2,12 +2,16 @@ package easyshell
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"github.com/3th1nk/easyshell/v2/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/3th1nk/easyshell/v2/internal/testsrv"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
 	"path/filepath"
@@ -390,4 +394,111 @@ func TestMockSshShell_ProxyChain(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.True(t, core.IsAuth(err), "got=%v", err)
+}
+
+// TestMockSshShell_Scp 离线验证 SCP 上传/下载(mock 协议端)与进度回调
+func TestMockSshShell_Scp(t *testing.T) {
+	srv := testsrv.NewSshServer(t)
+	rootDir := t.TempDir()
+	srv.RootDir = rootDir
+
+	s, err := NewSshShell(SshConfig{
+		Credential: SshCredential{Host: hostOf(srv.Addr), Port: portOf(srv.Addr), User: srv.User, Password: srv.Password, Timeout: 3 * time.Second},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 上传(带进度)
+	content := []byte("scp transfer test data")
+	local := filepath.Join(t.TempDir(), "a.bin")
+	assert.NoError(t, os.WriteFile(local, content, 0644))
+
+	var lastN, lastTotal int64
+	assert.NoError(t, s.ScpUpload(ctx, local, "a.bin", ScpOptions{
+		Progress: func(n, total int64) { lastN, lastTotal = n, total },
+	}))
+	assert.Equal(t, int64(len(content)), lastTotal, "进度回调应收到最后一次全量")
+
+	got, err := readRemoteFile(mustSftp(t, s), "a.bin")
+	assert.NoError(t, err)
+	assert.Equal(t, content, got)
+
+	// 下载
+	down := filepath.Join(t.TempDir(), "down.bin")
+	assert.NoError(t, s.ScpDown(ctx, "a.bin", down, ScpOptions{
+		Progress: func(n, total int64) { lastN, lastTotal = n, total },
+	}))
+	got, err = os.ReadFile(down)
+	assert.NoError(t, err)
+	assert.Equal(t, content, got)
+	assert.Equal(t, int64(len(content)), lastN)
+}
+
+// mustSftp 获取SFTP客户端(校验用)
+func mustSftp(t *testing.T, s *SshShell) *sftp.Client {
+	t.Helper()
+	cli, err := s.SftpClient()
+	assert.NoError(t, err)
+	return cli
+}
+
+// TestMockSshShell_KnownHosts 离线验证 known_hosts 主机密钥校验
+func TestMockSshShell_KnownHosts(t *testing.T) {
+	srv := testsrv.NewSshServer(t)
+
+	makeCred := func(key string) SshCredential {
+		kh := filepath.Join(t.TempDir(), "known_hosts")
+		// known_hosts 行格式: [host]:port keytype base64(非标准端口必须带端口)
+		line := "[127.0.0.1]:" + itoa(portOf(srv.Addr)) + " " + key + "\n"
+		assert.NoError(t, os.WriteFile(kh, []byte(line), 0600))
+		cb, err := KnownHostsCallback(kh)
+		if !assert.NoError(t, err) {
+			t.Fatal(err)
+		}
+		cred := SshCredential{
+			Host: hostOf(srv.Addr), Port: portOf(srv.Addr),
+			User: srv.User, Password: srv.Password, Timeout: 3 * time.Second,
+		}
+		cred.HostKeyCallback = cb
+		return cred
+	}
+
+	// 正确的主机密钥 → 连接成功
+	s, err := NewSshShell(SshConfig{Credential: makeCred(srv.HostKey)})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+	assert.True(t, hasLine(s.HeadLine(), "Welcome"))
+
+	// 错误的主机密钥(真实的其他密钥) → 连接拒绝
+	_, wrongPriv, err := ed25519.GenerateKey(rand.Reader)
+	if !assert.NoError(t, err) {
+		return
+	}
+	wrongSigner, err := ssh.NewSignerFromKey(wrongPriv)
+	if !assert.NoError(t, err) {
+		return
+	}
+	wrongPub := wrongSigner.PublicKey()
+	wrongKey := wrongPub.Type() + " " + base64.StdEncoding.EncodeToString(wrongPub.Marshal())
+	_, err = NewSshShell(SshConfig{Credential: makeCred(wrongKey)})
+	assert.Error(t, err)
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b []byte
+	for n > 0 {
+		b = append([]byte{byte('0' + n%10)}, b...)
+		n /= 10
+	}
+	return string(b)
 }
