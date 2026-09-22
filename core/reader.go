@@ -194,7 +194,6 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 	var confirm int
 	var ctxDone bool
 	pop := func() bool {
-		var dropPending bool
 		_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
 			stop = false
 			if len(lines) != 0 && onOut != nil {
@@ -216,9 +215,11 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 				for _, f := range interceptors {
 					if match, showOut, input := f(window); match {
 						outBuf.Reset()
+						// 先丢弃过滤器的未完成行再写入应答：
+						//	应答会触发设备回写新数据，必须避免其拼进即将作废的旧行
+						r.out.dropFilterPending()
 						// 已知限制：多行拦截器命中时，匹配窗口内的前缀行不会作为输出返回
 						_ = r.Write(input) // 自动补 \n
-						dropPending = !showOut
 						return !showOut
 					}
 				}
@@ -234,11 +235,11 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 			for _, f := range defaultInterceptors {
 				if match, showOut, input := f(remaining); match {
 					outBuf.Reset()
+					r.out.dropFilterPending()
 					if showOut && onOut != nil {
 						onOut([]string{remaining})
 					}
 					_ = r.WriteRaw([]byte(input))
-					dropPending = !showOut
 					return !showOut
 				}
 			}
@@ -255,16 +256,14 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 				r.prompt = remaining
 				r.mu.Unlock()
 				stop = stopOnPrompt
-				dropPending = !r.cfg.ShowPrompt
+				if !r.cfg.ShowPrompt {
+					r.out.dropFilterPending()
+				}
 				return !r.cfg.ShowPrompt
 			}
 
 			return false
 		})
-		if dropPending {
-			// 拦截器命中的行后续不会再有内容，丢弃过滤器的未完成行(避免残留)
-			r.out.dropPending()
-		}
 		if e != nil {
 			// 保留 err 后退出循环，后续继续处理 stderr
 			if e != io.EOF && !errors.Is(e, io.ErrClosedPipe) && !errors.Is(e, io.ErrNoProgress) && !errors.Is(e, io.ErrUnexpectedEOF) {

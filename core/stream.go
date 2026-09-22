@@ -87,12 +87,8 @@ func (s *stream) PopLines(f func(lines []string, remaining string) (dropRemainin
 	return droppedLines + droppedRemaining, s.err
 }
 
-// dropPending 丢弃当前未完成行(输出拦截器命中该行后调用，避免其后续内容残留)
-func (s *stream) dropPending() {
-	s.mu.Lock()
-	s.remain = ""
-	s.mu.Unlock()
-
+// dropFilterPending 丢弃过滤器的未完成行(可在持有 s.mu 的回调内调用，不清 s.remain)
+func (s *stream) dropFilterPending() {
 	s.fltMu.Lock()
 	s.flt.DropPending()
 	s.fltMu.Unlock()
