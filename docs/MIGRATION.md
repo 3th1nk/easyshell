@@ -23,7 +23,7 @@
 | 内嵌 `shell.ReadWriter`(透传使用) | 不再暴露；`Shell` 接口覆盖原有用法 |
 
 
-## 使用方迁移要点(基于 collector 实际用法)
+## 使用方迁移要点
 
 1. `shell.ReadWriter` 透传模式不再可用——改用 `Shell` 接口方法(覆盖原有全部用法)
 2. 超时参数改 context：`s.ReadToEndLine(30*time.Second, f)` → `s.ReadUntilPrompt(ctx, f)`
