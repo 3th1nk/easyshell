@@ -36,10 +36,14 @@ type Reader struct {
 	err *stream // stderr 流，可能为 nil
 	lo  *lazyOut
 
-	// mu 保护 prompt、promptRegex：Read 过程中会写入，而 Prompt、IsPrompt 可能被其他 goroutine 调用
+	// mu 保护 prompt、promptRegex、lastCmd：Read 过程中会写入，而 Prompt、IsPrompt 可能被其他 goroutine 调用
 	mu          sync.Mutex
 	prompt      string
 	promptRegex []*regexp.Regexp
+	lastCmd     string // 最后一次 Write 的命令(错误检测报告中引用)
+
+	// errorPatterns 错误检测规则(len==0 表示关闭检测)
+	errorPatterns []*ErrorPattern
 
 	readMu    sync.Mutex
 	closed    atomic.Bool
@@ -57,6 +61,11 @@ func NewReader(in io.Writer, out, errStream io.Reader, cfg Config) *Reader {
 		in:          in,
 		out:         newStream(out, cfg),
 		promptRegex: append([]*regexp.Regexp(nil), cfg.PromptRegex...),
+	}
+	if cfg.ErrorPatterns == nil {
+		r.errorPatterns = DefaultErrorPatterns()
+	} else {
+		r.errorPatterns = cfg.ErrorPatterns
 	}
 	if !isNil(errStream) {
 		r.err = newStream(errStream, cfg)
@@ -88,6 +97,10 @@ func (r *Reader) Write(cmd string) error {
 	} else if cmd[len(cmd)-1] != '\n' {
 		cmd += "\n"
 	}
+	// 记录命令(错误检测报告引用)；注意拦截器的应答走 WriteRaw，不覆盖
+	r.mu.Lock()
+	r.lastCmd = strings.TrimRight(cmd, "\n")
+	r.mu.Unlock()
 	return r.WriteRaw([]byte(cmd))
 }
 
@@ -193,11 +206,28 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 	var stop bool
 	var confirm int
 	var ctxDone bool
+	var devErr *DeviceError
+	var devErrs []*DeviceError
 	pop := func() bool {
 		_, e := r.out.PopLines(func(lines []string, remaining string) (dropRemaining bool) {
 			stop = false
 			if len(lines) != 0 && onOut != nil {
 				onOut(lines)
+			}
+
+			// 命令输出错误检测(仅扫描已交付的完整行；登录横幅在 Shell 创建阶段已消费，不参与)
+			if len(r.errorPatterns) > 0 {
+				r.mu.Lock()
+				cmd := r.lastCmd
+				r.mu.Unlock()
+				if de := detectErrors(r.errorPatterns, cmd, lines); de != nil {
+					if r.cfg.ErrorPolicy == ErrorCollect {
+						devErrs = append(devErrs, de)
+					} else { // ErrorFail
+						devErr = de
+						return true
+					}
+				}
 			}
 
 			// 匹配优先级：指定的拦截器规则 > 默认拦截器规则 > 命令结束提示符规则
@@ -271,6 +301,9 @@ func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines [
 			}
 			return true
 		}
+		if devErr != nil { // ErrorFail：命中设备错误立即退出
+			return true
+		}
 
 		if stop {
 			if confirm >= r.cfg.ReadConfirm {
@@ -315,6 +348,18 @@ loop:
 	// stderr 按策略处理；ctx 超时/取消的错误优先，不被 stderr 内容覆盖
 	if errSt := r.drainStderr(onOut); errSt != nil && !ctxDone && err == nil {
 		err = errSt
+	}
+
+	// 设备错误汇总：Fail 策略优先返回首个命中；Collect 策略聚合全部命中
+	if devErr != nil && err == nil && !ctxDone {
+		err = devErr
+	}
+	if len(devErrs) > 0 && err == nil && !ctxDone {
+		errs := make([]error, len(devErrs))
+		for i, de := range devErrs {
+			errs[i] = de
+		}
+		err = &Error{Op: OpRead, Err: errors.Join(errs...)}
 	}
 
 	if r.lo != nil {

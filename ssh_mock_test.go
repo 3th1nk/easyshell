@@ -223,3 +223,53 @@ func portOf(addr string) int {
 	}
 	return 0
 }
+
+// TestMockSshShell_ErrorDetect 离线验证设备错误检测(端到端)：
+//
+//	1、横幅带错误样式信息的设备——横幅不触发误报
+//	2、坏命令命中解析错误规则——Run 返回 *core.DeviceError
+func TestMockSshShell_ErrorDetect(t *testing.T) {
+	srv := testsrv.NewSshServer(t)
+	srv.Banner = "stale error line from last session" // 横幅噪声
+
+	s, err := NewSshShell(SshConfig{
+		Credential: SshCredential{Host: hostOf(srv.Addr), Port: portOf(srv.Addr), User: srv.User, Password: srv.Password, Timeout: 3 * time.Second},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 好命令不误报(横幅噪声不影响)
+	assert.NoError(t, s.Run(ctx, "show version", func([]string) {}))
+
+	// 坏命令：自定义会话返回设备解析错误
+	srv.Session = func(ss *testsrv.SshSession) {
+		write := func(str string) { _, _ = ss.Stdout.Write([]byte(str)) }
+		write(srv.Prompt)
+		buf := make([]byte, 4096)
+		for {
+			if _, err := ss.Stdin.Read(buf); err != nil {
+				return
+			}
+			write("% Unrecognized command found at '^' position.\n" + srv.Prompt)
+		}
+	}
+	// 会话 handler 在连接建立时已确定，需要新建 Shell 才能使用自定义会话
+	s2, err := NewSshShell(SshConfig{
+		Credential: SshCredential{Host: hostOf(srv.Addr), Port: portOf(srv.Addr), User: srv.User, Password: srv.Password, Timeout: 3 * time.Second},
+	})
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer s2.Close()
+
+	err = s2.Run(ctx, "disp lay ver", func([]string) {})
+	assert.Error(t, err)
+	var de *core.DeviceError
+	assert.True(t, errors.As(err, &de), "应返回DeviceError, got=%v", err)
+	assert.Contains(t, de.Line, "Unrecognized command")
+}

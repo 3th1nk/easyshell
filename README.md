@@ -8,6 +8,7 @@
 * 内置拦截器：密码交互(Password)、选项交互(Yes/No)、网络设备自动翻页(More)、继续执行(Continue)；拦截器命中后先丢弃未完成行再写入应答，无内容粘连
 * 延迟返回输出内容(按时间间隔或累计大小)；stderr 三种处理策略(Error/Output/Ignore)
 * 录制原始输入输出并回放(record 包，二进制帧格式，含时间戳与方向)
+* 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
 * SFTP 文件上传(临时文件+rename 原子写)/下载/递归删除
 * 并发安全：读取过程中可并发查询 Prompt/IsPrompt；并发 Read 被拒绝并返回明确错误
 * 离线可测试：内置 mock SSH/Telnet/SFTP 服务(internal/testsrv)
@@ -49,8 +50,31 @@ go get github.com/3th1nk/easyshell/v2
 - 密码交互(su/sudo 场景)
 ```go
     err = s.Run(ctx, "su root", nil,
-        easyshell.InterceptorPassword("Password:", rootPassword))
+        interceptor.Password("Password:", rootPassword))
     _, err = easyshell.ExitCode(ctx, s) // echo $? 获取上一条命令退出码
+```
+
+- 设备错误检测(输出中的命令解析错误自动失败)
+```go
+    // 默认开启：命中 H3C/Cisco/华为/Juniper 命令解析错误即返回 *core.DeviceError
+    //  (登录横幅不参与检测，登录即输出错误样式信息的设备不会误报)
+    err = s.Run(ctx, "disp lay ver", onOut)
+    var de *core.DeviceError
+    if errors.As(err, &de) {
+        fmt.Println("命令错误:", de.Cmd, de.Line, de.PatternName)
+    }
+
+    // 策略与规则可配(Config)：
+    cfg.ErrorPolicy = easyshell.ErrorCollect       // 命中不中断，结束时聚合返回
+    cfg.ErrorPatterns = append(core.DefaultErrorPatterns(),
+        core.NewErrorPattern("my-error", `(?i)^my custom error`))
+    cfg.ErrorPatterns = []*core.ErrorPattern{}     // 显式关闭检测
+```
+
+- 禁用分页(获取长配置推荐先禁用分页，比 More 逐页应答更快)
+```go
+    s.Run(ctx, easyshell.PagingDisableCommand(easyshell.VendorH3C), nil) // screen-length disable
+    s.Run(ctx, "display saved-configuration", onOut)                     // More 拦截器仍作为兜底
 ```
 
 - Telnet / 本地命令

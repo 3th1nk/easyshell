@@ -20,6 +20,20 @@ const (
 	StderrIgnore
 )
 
+// ErrorPolicy 命令输出错误检测的命中处理策略
+type ErrorPolicy uint8
+
+const (
+	// ErrorFail 默认：命中后立即中止本次 Read 并返回 *DeviceError
+	//	(命中行之前已交付给 onOut 的内容保持不变)。
+	//	登录横幅在 Shell 创建阶段已被单独消费，不参与检测，
+	//	因此登录时自动输出错误样式信息的设备不会被误报
+	ErrorFail ErrorPolicy = iota
+	// ErrorCollect 命中后继续读取(适合异步日志中夹带错误样式行的设备)，
+	//	Read 结束时以 errors.Join 聚合所有 *DeviceError 返回
+	ErrorCollect
+)
+
 // Config 读取过程的配置(零值合法，未设置的字段使用库默认值)。
 //
 // 配置以值传入，库内部使用副本，不会修改调用方传入的结构体。
@@ -58,6 +72,13 @@ type Config struct {
 	LazyOutSize int
 	// Stderr stderr 处理策略，默认 StderrError
 	Stderr StderrPolicy
+	// ErrorPatterns 命令输出的错误检测规则。
+	//	nil 时使用内置默认规则(仅命令解析器错误，见 DefaultErrorPatterns；
+	//	登录横幅不参与检测)；
+	//	显式传空切片关闭检测；传自定义规则则以传入为准(可基于 DefaultErrorPatterns() 追加)
+	ErrorPatterns []*ErrorPattern
+	// ErrorPolicy 错误命中的处理策略，默认 ErrorFail
+	ErrorPolicy ErrorPolicy
 }
 
 func (cfg Config) normalize() Config {
