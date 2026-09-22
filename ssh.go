@@ -318,6 +318,19 @@ func NewSshShellFromClient(client *ssh.Client, cfg SshConfig) (*SshShell, error)
 		_ = session.Close()
 		return nil, &core.Error{Op: core.OpShell, Addr: addr, Err: err}
 	}
+
+	// 保活动作：SSH 协议层 keepalive 请求(需要应答，失败即连接异常)
+	if cfg.KeepAlive != nil && cfg.KeepAlive.Interval > 0 {
+		send := cfg.KeepAlive.Send
+		if send == nil {
+			send = func() error {
+				_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
+				return err
+			}
+		}
+		cfg.KeepAlive.Send = send
+	}
+
 	r := core.NewReader(pIn, pOut, pErr, cfg.Config)
 
 	// 此时可能会有一些输出(欢迎信息、日志打印、密码修改提示等)，需要读取并处理，防止影响后续操作。

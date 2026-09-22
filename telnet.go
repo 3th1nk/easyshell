@@ -64,9 +64,19 @@ func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
 
 // NewTelnetShellFromClient 基于已有的 telnet 连接创建 Shell(调用方自行管理连接的关闭)。
 func NewTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetShell, error) {
-	r := core.NewReader(client, client, nil, cfg.Config)
+	// 保活动作：telnet NOP 命令
+	if cfg.KeepAlive != nil && cfg.KeepAlive.Interval > 0 {
+		send := cfg.KeepAlive.Send
+		if send == nil {
+			send = func() error {
+				_, err := client.Write([]byte{241}) // NOP
+				return err
+			}
+		}
+		cfg.KeepAlive.Send = send
+	}
 
-	// 触发一次回车，读取当前提示符(避免首次 Run 把提示符拼进输出)
+	r := core.NewReader(client, client, nil, cfg.Config)
 	_ = r.Write("")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

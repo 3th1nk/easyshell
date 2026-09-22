@@ -11,6 +11,9 @@
 * 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
 * 精简的接口参数：每次调用的可选项(提示符覆盖/拦截器)统一为 RunOptions 可变参数结构体
 * 跳板机/堡垒机：多级代理链(SshConfig.Proxy)；SSH Agent 认证(UseAgent)
+* 厂商驱动(VendorProfile)：禁用分页/保存配置(含确认交互)/错误模式整合，支持自定义厂商注册
+* 长连接保活(Config.KeepAlive)：周期探测+失败阈值+死亡回调，防空闲断连
+* 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
 * 命令级提示符覆盖(RunOptions.Prompt)：提示符动态变化场景严格匹配；配置模式状态推断(InConfigMode)
 * 结构化日志钩子(Config.Logger *slog.Logger)：会话关键事件接入运维日志体系
 * 多命令脚本(RunScript)：顺序执行、失败定位到命令
@@ -85,6 +88,32 @@ go get github.com/3th1nk/easyshell/v2
     err = easyshell.RunScript(ctx, s, func(cmd string, lines []string) {
         fmt.Println("==", cmd)
     }, "screen-length disable", "display version", "display clock")
+```
+
+- 厂商驱动与保存配置
+```go
+    s.Run(ctx, easyshell.VendorProfileOf(easyshell.VendorH3C).PagingDisable, nil)
+    err = easyshell.SaveConfig(ctx, s, easyshell.VendorHuawei, nil) // 自动处理 Y/N 确认
+```
+
+- 长连接保活(防防火墙/NAT 空闲断连)
+```go
+    s, _ := easyshell.NewSshShell(easyshell.SshConfig{
+        Credential: cred,
+        Config: easyshell.Config{KeepAlive: &core.KeepAliveConfig{
+            Interval: 30 * time.Second, // SSH keepalive 请求由库注入
+            OnDead:   func(err error) { /* 重连/告警 */ },
+        }},
+    })
+```
+
+- 文件传输校验与进度
+```go
+    s.SftpUpload(ctx, "local.bin", "/remote/path.bin", easyshell.SftpOptions{
+        Force:     true,
+        HashVerify: true, // 上传后远端 md5sum 比对
+        Progress:  func(transferred, total int64) { fmt.Printf("\r%d/%d", transferred, total) },
+    })
 ```
 
 - 录制导出为 asciinema(可直接用播放器回放)

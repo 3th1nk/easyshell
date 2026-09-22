@@ -74,6 +74,9 @@ func NewReader(in io.Writer, out, errStream io.Reader, cfg Config) *Reader {
 	if cfg.LazyOutInterval > 0 || cfg.LazyOutSize > 0 {
 		r.lo = newLazyOut(cfg.LazyOutInterval, cfg.LazyOutSize)
 	}
+	if cfg.KeepAlive != nil {
+		r.startKeepAlive(cfg.KeepAlive)
+	}
 	return r
 }
 

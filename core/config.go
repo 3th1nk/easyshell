@@ -73,6 +73,9 @@ type Config struct {
 	LazyOutSize int
 	// Stderr stderr 处理策略，默认 StderrError
 	Stderr StderrPolicy
+	// KeepAlive 长连接保活配置(nil 不启用)。探测动作由具体 Shell 注入(SSH keepalive 请求/
+	//	Telnet NOP)；连续失败达到 MaxFailures 时通过 OnDead 回调通知连接死亡
+	KeepAlive *KeepAliveConfig
 	// Logger 结构化日志钩子(nil 关闭日志)。记录会话关键事件：
 	//	读取开始/结束(含命令与耗时)、设备错误命中、写入失败等，接入运维平台日志体系用
 	Logger *slog.Logger
