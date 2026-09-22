@@ -113,6 +113,7 @@ func RegisterVendorProfile(p *VendorProfile) {
 }
 
 // PagingDisableCommand 返回厂商对应的禁用分页命令；未知厂商返回空串
+//
 //	(应继续依赖 More 拦截器兜底)。等价于 VendorProfileOf(v).PagingDisable。
 func PagingDisableCommand(v Vendor) string {
 	if p := VendorProfileOf(v); p != nil {
