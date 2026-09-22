@@ -2,7 +2,7 @@ package easyshell
 
 import (
 	"context"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"

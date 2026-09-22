@@ -2,7 +2,7 @@ package telnet
 
 import (
 	"crypto/tls"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"regexp"
 	"time"
 )

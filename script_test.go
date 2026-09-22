@@ -3,7 +3,7 @@ package easyshell
 import (
 	"context"
 	"errors"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/internal/testsrv"
 	"github.com/stretchr/testify/assert"
 	"testing"

@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/3th1nk/easyshell/v2/internal/testsrv"
 	"github.com/pkg/sftp"

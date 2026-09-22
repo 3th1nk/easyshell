@@ -1,6 +1,6 @@
 package easyshell
 
-import "github.com/3th1nk/easyshell/v2/core"
+import "github.com/3th1nk/easyshell/v2/internal/core"
 
 // Config 读取过程配置，字段说明见 core.Config
 type Config = core.Config
@@ -12,6 +12,23 @@ type StderrPolicy = core.StderrPolicy
 //
 //	用法: s.Run(ctx, cmd, onOut, easyshell.RunOptions{Interceptors: its})
 type RunOptions = core.RunOptions
+
+// ErrorPolicy 命令输出错误检测的命中处理策略
+type ErrorPolicy = core.ErrorPolicy
+
+const (
+	ErrorFail    = core.ErrorFail    // 命中即失败
+	ErrorCollect = core.ErrorCollect // 命中后继续读取，结束时聚合返回
+)
+
+// ErrorPattern 命令输出错误检测规则
+type ErrorPattern = core.ErrorPattern
+
+// DefaultErrorPatterns 内置默认错误检测规则(仅命令解析器错误)
+func DefaultErrorPatterns() []*core.ErrorPattern { return core.DefaultErrorPatterns() }
+
+// KeepAliveConfig 长连接保活配置
+type KeepAliveConfig = core.KeepAliveConfig
 
 const (
 	StderrError  = core.StderrError

@@ -29,6 +29,20 @@ go get github.com/3th1nk/easyshell/v2
 
 要求 Go 1.21+。
 
+## 包结构
+
+调用方只需关心 4 个公共包，各司其职：
+
+| 包 | 职责 |
+|---|---|
+| `easyshell`(本包) | Shell 接口与全部高层 API(唯一入口) |
+| `interceptor` | 输出拦截器(密码/翻页/选项/自定义) |
+| `filter` | 字符过滤器(默认内置，支持自定义实现) |
+| `record` | 录制与回放 |
+
+读取循环、错误类型等实现细节全部收敛在 `internal/`，通过本包的别名暴露
+(`easyshell.Error`、`easyshell.IsTimeout`、`easyshell.RunOptions`、`easyshell.Config` 等)。
+
 ## 代码片段
 
 - SSH 执行命令

@@ -3,7 +3,7 @@ package easyshell
 import (
 	"context"
 	"fmt"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"

@@ -40,5 +40,13 @@
 //     (设备可能在等待拦截器应答)，需要重处理时请在回调内自行异步化；
 //   - Close 幂等，调用后所有操作返回 core.ErrClosed。
 //
+// # 包结构
+//
+//	easyshell      本包：Shell 接口与全部高层 API(唯一需要学习的入口)
+//	interceptor    输出拦截器(密码/翻页/选项/自定义)
+//	filter         字符过滤器(可自定义实现)
+//	record         录制与回放
+//	cmd/eshdump    录制文件转储工具
+//
 // 更多内容：README(特性与示例)、docs/MIGRATION.md(v1→v2 迁移)、docs/ROADMAP.md(路线图)。
 package easyshell

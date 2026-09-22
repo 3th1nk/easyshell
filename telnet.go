@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/3th1nk/easygo/util"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/record"
-	"github.com/3th1nk/easyshell/v2/telnet"
+	"github.com/3th1nk/easyshell/v2/internal/telnet"
 	"strings"
 	"time"
 )
@@ -96,10 +96,6 @@ type TelnetShell struct {
 	client    *telnet.Client
 	ownClient bool
 	headLine  []string
-}
-
-func (s *TelnetShell) Client() *telnet.Client {
-	return s.client
 }
 
 // HeadLine 返回登录后的欢迎信息

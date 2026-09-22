@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easygo/util/arrUtil"
-	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/3th1nk/easyshell/v2/record"
 	"github.com/pkg/sftp"

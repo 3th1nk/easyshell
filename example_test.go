@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/3th1nk/easyshell/v2"
-	"github.com/3th1nk/easyshell/v2/core"
 	"github.com/3th1nk/easyshell/v2/filter"
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"log"
@@ -76,7 +75,7 @@ func ExampleShell_Run() {
 			fmt.Println(line)
 		}
 	}, easyshell.RunOptions{Interceptors: []interceptor.Interceptor{
-		interceptor.Password(core.PasswordRegex.String(), "rootPassword"),
+		interceptor.Password(easyshell.PasswordRegex.String(), "rootPassword"),
 	}})
 	if err != nil {
 		log.Fatal(err)
