@@ -118,8 +118,8 @@ func sftpUploadFile(cli *sftp.Client, localPath, remotePath string, force bool, 
 		total = fi.Size()
 	}
 
-	// 原子写入：先写临时文件，成功后重命名(部分SFTP服务端不支持覆盖式rename，两级回退)
-	tmpPath := remotePath + ".easyshell.tmp"
+	// 原子写入：先写临时文件(同目录隐藏文件)，成功后重命名(部分SFTP服务端不支持覆盖式rename，两级回退)
+	tmpPath := path.Join(path.Dir(remotePath), "."+path.Base(remotePath)+".easyshell-tmp")
 	tmpFile, err := cli.Create(tmpPath)
 	if err != nil {
 		return err

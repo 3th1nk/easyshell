@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -34,7 +35,7 @@ const (
 // 内置厂商驱动以 YAML 文件形式维护在 vendors/ 目录(编译期嵌入，单一事实来源)：
 //
 //	新增/修正厂商 = 修改一个 YAML 文件(无需改 Go 代码)；
-//	使用方还可以通过 LoadVendorProfilesFile 在运行时加载自定义驱动覆盖/扩展内置定义。
+//	使用方还可以通过 LoadVendorProfilesPath 在运行时加载自定义驱动覆盖/扩展内置定义。
 //
 //go:embed vendors/*.yaml
 var vendorFS embed.FS
@@ -43,7 +44,7 @@ var vendorFS embed.FS
 //
 //	内置了 H3C/Cisco/华为/Juniper/锐捷/山石/Array 等厂商的 profile(见 VendorProfileOf)；
 //	自定义厂商可通过 RegisterVendorProfile 注册，或从 JSON/YAML 配置文件批量加载
-//	(见 LoadVendorProfilesFile)。
+//	(见 LoadVendorProfilesPath)。
 type VendorProfile struct {
 	// Vendor 厂商/系统类型
 	Vendor Vendor
@@ -127,8 +128,9 @@ func PagingDisableCommand(v Vendor) string {
 	return ""
 }
 
-// LoadVendorProfilesFile 从 JSON/YAML 配置文件加载并注册厂商驱动(按扩展名识别格式)。
+// LoadVendorProfilesPath 从文件或目录加载并注册厂商驱动(按扩展名识别格式)。
 //
+//	path 为文件(单个驱动或数组)或目录(加载其中所有 .yaml/.yml/.json 文件，按文件名排序)；
 //	文件内容支持单个对象或对象数组，字段均为 snake_case；
 //	同名厂商会覆盖内置定义；解析或规则编译失败时不产生部分注册。
 //	示例(yaml)：
@@ -138,12 +140,44 @@ func PagingDisableCommand(v Vendor) string {
 //	    error_patterns:
 //	      - name: myfw-bad-cmd
 //	        pattern: '^ERROR: unknown keyword'
-func LoadVendorProfilesFile(path string) error {
-	data, err := os.ReadFile(path)
+func LoadVendorProfilesPath(path string) error {
+	fi, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
-	return LoadVendorProfiles(data, filepath.Ext(path))
+	if !fi.IsDir() {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return registerVendorProfiles(data, filepath.Ext(path))
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	var files []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		switch strings.ToLower(filepath.Ext(e.Name())) {
+		case ".yaml", ".yml", ".json":
+			files = append(files, filepath.Join(path, e.Name()))
+		}
+	}
+	sort.Strings(files)
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		if err = registerVendorProfiles(data, filepath.Ext(f)); err != nil {
+			return fmt.Errorf("%s: %w", f, err)
+		}
+	}
+	return nil
 }
 
 // LoadVendorProfiles 从 JSON/YAML 内容加载并注册厂商驱动。

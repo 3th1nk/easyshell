@@ -2,9 +2,12 @@ package easyshell
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/3th1nk/easyshell/v2/internal/testsrv"
 	"github.com/stretchr/testify/assert"
-	"testing"
 	"time"
 )
 
@@ -126,4 +129,31 @@ func TestPagingDisableCommand(t *testing.T) {
 	// 未知厂商返回空串(依赖 More 拦截器兜底)
 	assert.Equal(t, "", PagingDisableCommand(VendorGeneric))
 	assert.Equal(t, "", PagingDisableCommand("unknown-vendor"))
+}
+
+// TestLoadVendorProfilesPath 目录模式：从目录批量加载驱动
+func TestLoadVendorProfilesPath(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "myfw.yaml"), []byte(
+		"vendor: my-firewall\npaging_disable: \"set page 0\"\n"), 0644))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "myfw.json"), []byte(
+		"{\"vendor\": \"my-switch\", \"paging_disable\": \"no paging\"}"), 0644))
+	// 不支持格式与子目录应被忽略
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "ignore.txt"), []byte("junk"), 0644))
+	_ = os.Mkdir(filepath.Join(dir, "sub"), 0755)
+
+	assert.NoError(t, LoadVendorProfilesPath(dir))
+	assert.NotNil(t, VendorProfileOf("my-firewall"))
+	assert.Equal(t, "set page 0", PagingDisableCommand("my-firewall"))
+	assert.NotNil(t, VendorProfileOf("my-switch"))
+	assert.Equal(t, "no paging", PagingDisableCommand("my-switch"))
+
+	// 单文件模式
+	file := filepath.Join(t.TempDir(), "one.yaml")
+	assert.NoError(t, os.WriteFile(file, []byte("vendor: my-router\n"), 0644))
+	assert.NoError(t, LoadVendorProfilesPath(file))
+	assert.NotNil(t, VendorProfileOf("my-router"))
+
+	// 不存在的路径
+	assert.Error(t, LoadVendorProfilesPath(filepath.Join(dir, "no-such.yaml")))
 }

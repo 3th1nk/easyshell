@@ -25,7 +25,7 @@
 使用方可不修改本目录，在程序启动阶段加载自己的驱动定义覆盖/扩展内置项：
 
 ```go
-if err := easyshell.LoadVendorProfilesFile("/path/to/my-vendors.yaml"); err != nil {
+if err := easyshell.LoadVendorProfilesPath("/path/to/my-vendors.yaml"); err != nil {
     // ...
 }
 ```
