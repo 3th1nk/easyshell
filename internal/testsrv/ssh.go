@@ -14,6 +14,7 @@ import (
 )
 
 // SshServer 模拟 SSH 服务端(基于 golang.org/x/crypto/ssh 服务端实现，零外部依赖)：
+//
 //	密码认证 + PTY + 交互式 shell + SFTP 子系统。
 type SshServer struct {
 	Addr     string

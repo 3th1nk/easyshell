@@ -62,6 +62,7 @@ func (cfg SshConfig) normalize() SshConfig {
 }
 
 // NewSshClient 创建 SSH 连接。
+//
 //	连接失败返回 core.Error{Op: OpDial}，认证失败返回 core.Error{Op: OpAuth}。
 func NewSshClient(cred SshCredential) (*ssh.Client, error) {
 	addr := fmt.Sprintf("%s:%d", cred.Host, util.IfEmptyInt(cred.Port, 22))
@@ -125,6 +126,7 @@ func NewSshClient(cred SshCredential) (*ssh.Client, error) {
 }
 
 // NewSshShell 创建 SSH Shell 并完成登录。
+//
 //	登录横幅(欢迎信息、密码过期提示等)会被自动消费，通过 HeadLine() 获取。
 func NewSshShell(cfg SshConfig) (*SshShell, error) {
 	client, err := NewSshClient(cfg.Credential)

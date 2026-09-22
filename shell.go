@@ -72,6 +72,6 @@ func (b shellBase) RunAll(ctx context.Context, cmd string, onOut func(lines []st
 	interceptors ...interceptor.Interceptor) error {
 	return b.rw.RunAll(ctx, cmd, onOut, interceptors...)
 }
-func (b shellBase) Prompt() string     { return b.rw.Prompt() }
+func (b shellBase) Prompt() string         { return b.rw.Prompt() }
 func (b shellBase) IsPrompt(s string) bool { return b.rw.IsPrompt(s) }
-func (b shellBase) Close() error       { return b.rw.Close() }
+func (b shellBase) Close() error           { return b.rw.Close() }
