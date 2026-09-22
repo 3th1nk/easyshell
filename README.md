@@ -11,7 +11,7 @@
 * 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *core.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
 * 精简的接口参数：每次调用的可选项(提示符覆盖/拦截器)统一为 RunOptions 可变参数结构体
 * 跳板机/堡垒机：多级代理链(SshConfig.Proxy)；SSH Agent 认证(UseAgent)
-* 命令级提示符覆盖(RunPrompt)：提示符动态变化场景严格匹配；配置模式状态推断(InConfigMode)
+* 命令级提示符覆盖(RunOptions.Prompt)：提示符动态变化场景严格匹配；配置模式状态推断(InConfigMode)
 * 结构化日志钩子(Config.Logger *slog.Logger)：会话关键事件接入运维日志体系
 * 多命令脚本(RunScript)：顺序执行、失败定位到命令
 * SFTP 文件上传(临时文件+rename 原子写)/下载/递归删除
@@ -61,9 +61,10 @@ go get github.com/3th1nk/easyshell/v2
 
 - 提示符动态变化的场景(进入配置模式、su/sudo)：命令级提示符覆盖 + 会话状态推断
 ```go
-    // RunPrompt 指定本次命令的结束提示符(严格匹配，默认宽松规则不参与)：
+    // RunOptions.Prompt 指定本次命令的结束提示符(严格匹配，默认宽松规则不参与)：
     //  既避免宽松规则误匹配输出，也避免变化后的新提示符匹配不到而超时
-    err = s.RunPrompt(ctx, "system-view", regexp.MustCompile(`\[SW03[\]-][^>]*>\s*$`), onOut)
+    err = s.Run(ctx, "system-view", onOut,
+        easyshell.RunOptions{Prompt: regexp.MustCompile(`\[SW03[\]-][^>]*\]\s*$`)})
     if s.InConfigMode() { // 启发式：H3C/华为 [name] 视图、Cisco (config) 样式
         // 配置模式下继续执行命令...
         err = s.Run(ctx, "quit", nil)
