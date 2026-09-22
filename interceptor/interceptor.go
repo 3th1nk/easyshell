@@ -38,6 +38,7 @@ func Regexp(regex *regexp.Regexp, input string, format func(string) string, show
 }
 
 // Pattern 基于正则表达式字符串创建拦截器(pattern 非法时返回永远不命中的拦截器)。
+//
 //	参数语义同 Regexp。
 func Pattern(pattern string, input string, format func(string) string, showOut ...bool) Interceptor {
 	re, err := regexp.Compile(pattern)
