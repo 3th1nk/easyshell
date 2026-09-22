@@ -129,8 +129,8 @@ func TestDevice_SshShell_Sftp(t *testing.T) {
 	_, _ = localFile.WriteString("sftp test content")
 	_ = localFile.Close()
 
-	assert.NoError(t, s.SftpUpload(context.Background(), localFile.Name(), "/tmp/easyshell-sftp-test"))
-	assert.NoError(t, s.SftpRemove("/tmp/easyshell-sftp-test"))
+	assert.NoError(t, s.Upload(context.Background(), localFile.Name(), "/tmp/easyshell-sftp-test"))
+	assert.NoError(t, s.Delete(context.Background(), "/tmp/easyshell-sftp-test"))
 }
 
 // TestDevice_SshShell_Password 真机：su root 密码交互

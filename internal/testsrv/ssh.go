@@ -184,7 +184,7 @@ func (s *SshServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			if !ok {
 				continue
 			}
-			server, err := sftp.NewServer(ch, sftp.WithServerWorkingDirectory(s.RootDir))
+			server, err := sftp.NewServer(ch, sftp.WithServerWorkingDirectory(s.RootDir), sftp.WithDebug(os.Stderr))
 			if err != nil {
 				return
 			}

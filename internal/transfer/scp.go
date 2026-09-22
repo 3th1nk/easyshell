@@ -1,9 +1,8 @@
-package easyshell
+package transfer
 
 import (
 	"context"
 	"fmt"
-	"github.com/3th1nk/easyshell/v2/internal/core"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
@@ -12,28 +11,10 @@ import (
 	"strings"
 )
 
-// ScpOptions SCP 传输的可选参数(可省略)
-type ScpOptions struct {
-	// Force 目标文件已存在时是否覆盖(SCP 协议本身总是覆盖，此字段为与 SftpOptions 对齐保留)
-	Force bool
-	// Progress 传输进度回调(已传输字节数, 总字节数)。可为nil
-	Progress func(transferred, total int64)
-}
-
-func firstScpOpt(opts []ScpOptions) ScpOptions {
-	if len(opts) > 0 {
-		return opts[0]
-	}
-	return ScpOptions{}
-}
-
-// ScpUpload 经 SCP 协议上传本地文件到远端。
-//
-//	适用于不支持 SFTP 子系统的老旧网络设备(走 exec 通道执行远端 scp 命令，远端需安装 scp)；
+// ScpUpload 经 SCP 协议上传本地文件到远端(exec 通道，远端需安装 scp)。
 //	远端路径以 / 结尾时视为目录(自动拼接本地文件名)。
 //	ctx 取消时中止传输(关闭会话解除阻塞)。
-func (s *SshShell) ScpUpload(ctx context.Context, localPath, remotePath string, opts ...ScpOptions) error {
-	opt := firstScpOpt(opts)
+func ScpUpload(ctx context.Context, client *ssh.Client, localPath, remotePath string, opt Options) error {
 	fi, err := os.Stat(localPath)
 	if err != nil {
 		return err
@@ -42,9 +23,9 @@ func (s *SshShell) ScpUpload(ctx context.Context, localPath, remotePath string, 
 		remotePath += filepath.Base(localPath)
 	}
 
-	sess, err := s.client.NewSession()
+	sess, err := client.NewSession()
 	if err != nil {
-		return &core.Error{Op: core.OpSession, Addr: s.client.RemoteAddr().String(), Err: err}
+		return err
 	}
 
 	done := make(chan error, 1)
@@ -55,13 +36,11 @@ func (s *SshShell) ScpUpload(ctx context.Context, localPath, remotePath string, 
 	return scpWait(ctx, sess, done)
 }
 
-// ScpDown 经 SCP 协议下载远端文件到本地。ctx 取消时中止传输。
-func (s *SshShell) ScpDown(ctx context.Context, remotePath, localPath string, opts ...ScpOptions) error {
-	opt := firstScpOpt(opts)
-
-	sess, err := s.client.NewSession()
+// ScpDownload 经 SCP 协议下载远端文件到本地。ctx 取消时中止传输。
+func ScpDownload(ctx context.Context, client *ssh.Client, remotePath, localPath string, opt Options) error {
+	sess, err := client.NewSession()
 	if err != nil {
-		return &core.Error{Op: core.OpSession, Addr: s.client.RemoteAddr().String(), Err: err}
+		return err
 	}
 
 	done := make(chan error, 1)
@@ -83,7 +62,7 @@ func scpWait(ctx context.Context, sess *ssh.Session, done <-chan error) error {
 	case <-ctx.Done():
 		_ = sess.Close()
 		<-done
-		return &core.Error{Op: core.OpSftp, Err: ctx.Err()}
+		return ctx.Err()
 	}
 }
 
@@ -105,7 +84,7 @@ func scpSink(sess *ssh.Session, localPath, remotePath string, size int64, progre
 	}
 
 	if err = sess.Start("scp -t " + remotePath); err != nil {
-		return &core.Error{Op: core.OpSftp, Err: err}
+		return err
 	}
 
 	localFile, err := os.Open(localPath)
@@ -166,7 +145,7 @@ func scpSource(sess *ssh.Session, remotePath, localPath string, progress func(tr
 	}
 
 	if err = sess.Start("scp -f " + remotePath); err != nil {
-		return &core.Error{Op: core.OpSftp, Err: err}
+		return err
 	}
 
 	// 起始标记并等待远端确认
@@ -184,11 +163,11 @@ func scpSource(sess *ssh.Session, remotePath, localPath string, progress func(tr
 	}
 	fields := strings.Fields(head)
 	if len(fields) < 3 || len(fields[0]) < 2 || fields[0][0] != 'C' {
-		return &core.Error{Op: core.OpSftp, Err: fmt.Errorf("bad scp header %q", head)}
+		return fmt.Errorf("bad scp header %q", head)
 	}
 	size, err := strconv.ParseInt(fields[1], 10, 64)
 	if err != nil {
-		return &core.Error{Op: core.OpSftp, Err: fmt.Errorf("bad scp header %q: %v", head, err)}
+		return fmt.Errorf("bad scp header %q: %v", head, err)
 	}
 	// 就绪应答
 	if _, err = stdin.Write([]byte{0}); err != nil {
@@ -232,9 +211,9 @@ func scpExpectOk(r io.Reader, stderr io.Reader) error {
 	case 1, 2:
 		line, _ := scpReadLine(r)
 		errText, _ := io.ReadAll(stderr)
-		return &core.Error{Op: core.OpSftp, Err: fmt.Errorf("scp: %s %s", line, strings.TrimSpace(string(errText)))}
+		return fmt.Errorf("scp: %s %s", line, strings.TrimSpace(string(errText)))
 	}
-	return &core.Error{Op: core.OpSftp, Err: fmt.Errorf("scp: unexpected response %#x", buf[0])}
+	return fmt.Errorf("scp: unexpected response %#x", buf[0])
 }
 
 // scpReadLine 读取一行(到\n为止，不含\n)

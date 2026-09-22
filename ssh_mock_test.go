@@ -6,13 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/internal/testsrv"
-	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/ssh"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -139,8 +137,8 @@ func TestMockSshShell_AuthError(t *testing.T) {
 	assert.True(t, core.IsAuth(err), "got=%v", err)
 }
 
-// TestMockSshShell_Sftp 离线验证 SFTP 上传(原子写)/下载/递归删除
-func TestMockSshShell_Sftp(t *testing.T) {
+// TestMockSshShell_Transfer 离线验证文件传输能力：目录上传(原子写)/下载/覆盖语义/递归删除
+func TestMockSshShell_Transfer(t *testing.T) {
 	srv := testsrv.NewSshServer(t)
 	rootDir := t.TempDir()
 	srv.RootDir = rootDir
@@ -153,59 +151,47 @@ func TestMockSshShell_Sftp(t *testing.T) {
 	}
 	defer s.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// 本地准备上传文件与目录
 	localDir := t.TempDir()
 	_ = os.MkdirAll(filepath.Join(localDir, "sub"), 0755)
-	content1 := []byte("hello sftp")
+	content1 := []byte("hello transfer")
 	content2 := []byte("nested file")
 	assert.NoError(t, os.WriteFile(filepath.Join(localDir, "a.txt"), content1, 0644))
 	assert.NoError(t, os.WriteFile(filepath.Join(localDir, "sub", "b.txt"), content2, 0644))
 
 	// 上传目录
-	assert.NoError(t, s.SftpUpload(context.Background(), localDir, "upload"))
+	assert.NoError(t, s.Upload(ctx, localDir, "upload"))
 
-	// 校验远端内容
-	cli, err := s.SftpClient()
-	assert.NoError(t, err)
-	got, err := readRemoteFile(cli, "upload/a.txt")
+	// 校验远端内容：通过下载比对
+	downDir := t.TempDir()
+	assert.NoError(t, s.Download(ctx, "upload/a.txt", filepath.Join(downDir, "a.txt")))
+	got, err := os.ReadFile(filepath.Join(downDir, "a.txt"))
 	assert.NoError(t, err)
 	assert.Equal(t, content1, got)
-	got, err = readRemoteFile(cli, "upload/sub/b.txt")
+	assert.NoError(t, s.Download(ctx, "upload/sub/b.txt", filepath.Join(downDir, "b.txt")))
+	got, err = os.ReadFile(filepath.Join(downDir, "b.txt"))
 	assert.NoError(t, err)
 	assert.Equal(t, content2, got)
 
 	// 已存在且不覆盖 → ErrExist；覆盖 → 成功且内容更新
-	err = s.SftpUpload(context.Background(), filepath.Join(localDir, "a.txt"), "upload/a.txt")
+	err = s.Upload(ctx, filepath.Join(localDir, "a.txt"), "upload/a.txt")
 	assert.True(t, errors.Is(err, os.ErrExist), "got=%v", err)
 
 	content3 := []byte("updated")
 	assert.NoError(t, os.WriteFile(filepath.Join(localDir, "a.txt"), content3, 0644))
-	assert.NoError(t, s.SftpUpload(context.Background(), filepath.Join(localDir, "a.txt"), "upload/a.txt", SftpOptions{Force: true}))
-	got, err = readRemoteFile(cli, "upload/a.txt")
+	assert.NoError(t, s.Upload(ctx, filepath.Join(localDir, "a.txt"), "upload/a.txt", TransferOptions{Force: true}))
+	assert.NoError(t, s.Download(ctx, "upload/a.txt", filepath.Join(downDir, "a2.txt")))
+	got, err = os.ReadFile(filepath.Join(downDir, "a2.txt"))
 	assert.NoError(t, err)
 	assert.Equal(t, content3, got)
 
-	// 下载
-	downDir := t.TempDir()
-	assert.NoError(t, s.SftpDown(context.Background(), "upload/a.txt", filepath.Join(downDir, "a.txt")))
-	got, err = os.ReadFile(filepath.Join(downDir, "a.txt"))
-	assert.NoError(t, err)
-	assert.Equal(t, content3, got)
-
-	// 递归删除
-	assert.NoError(t, s.SftpRemove("upload"))
-	_, err = cli.Stat("upload")
+	// 递归删除：删除后下载报错
+	assert.NoError(t, s.Delete(ctx, "upload"))
+	err = s.Download(ctx, "upload/a.txt", filepath.Join(downDir, "gone.txt"))
 	assert.Error(t, err)
-}
-
-// readRemoteFile 读取远端文件内容
-func readRemoteFile(cli *sftp.Client, p string) ([]byte, error) {
-	f, err := cli.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return io.ReadAll(f)
 }
 
 func hostOf(addr string) string {
@@ -419,32 +405,22 @@ func TestMockSshShell_Scp(t *testing.T) {
 	assert.NoError(t, os.WriteFile(local, content, 0644))
 
 	var lastN, lastTotal int64
-	assert.NoError(t, s.ScpUpload(ctx, local, "a.bin", ScpOptions{
+	assert.NoError(t, s.Upload(ctx, local, "a.bin", TransferOptions{
+		Protocol: ProtocolScp,
 		Progress: func(n, total int64) { lastN, lastTotal = n, total },
 	}))
 	assert.Equal(t, int64(len(content)), lastTotal, "进度回调应收到最后一次全量")
 
-	got, err := readRemoteFile(mustSftp(t, s), "a.bin")
-	assert.NoError(t, err)
-	assert.Equal(t, content, got)
-
 	// 下载
 	down := filepath.Join(t.TempDir(), "down.bin")
-	assert.NoError(t, s.ScpDown(ctx, "a.bin", down, ScpOptions{
+	assert.NoError(t, s.Download(ctx, "a.bin", down, TransferOptions{
+		Protocol: ProtocolScp,
 		Progress: func(n, total int64) { lastN, lastTotal = n, total },
 	}))
-	got, err = os.ReadFile(down)
+	got, err := os.ReadFile(down)
 	assert.NoError(t, err)
 	assert.Equal(t, content, got)
 	assert.Equal(t, int64(len(content)), lastN)
-}
-
-// mustSftp 获取SFTP客户端(校验用)
-func mustSftp(t *testing.T, s *SshShell) *sftp.Client {
-	t.Helper()
-	cli, err := s.SftpClient()
-	assert.NoError(t, err)
-	return cli
 }
 
 // TestMockSshShell_KnownHosts 离线验证 known_hosts 主机密钥校验
