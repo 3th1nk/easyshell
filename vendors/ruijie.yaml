@@ -1,0 +1,4 @@
+# 锐捷(类Cisco语法)
+vendor: ruijie
+paging_disable: "terminal length 0"
+save_config_cmd: "write memory"

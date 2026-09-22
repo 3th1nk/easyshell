@@ -1,0 +1,4 @@
+# Juniper Junos(commit 在配置模式下执行)
+vendor: juniper
+paging_disable: "set cli screen-length 0"
+save_config_cmd: "commit"

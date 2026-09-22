@@ -2,6 +2,7 @@ package easyshell
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"github.com/3th1nk/easyshell/v2/core"
@@ -20,17 +21,27 @@ type Vendor string
 const (
 	VendorGeneric   Vendor = ""           // 未知厂商(无禁用分页命令，依赖 More 拦截器兜底)
 	VendorH3C       Vendor = "h3c"        // H3C/Comware
+	VendorHPComware Vendor = "comware"    // HP Comware(同H3C语法)
 	VendorCiscoIOS  Vendor = "cisco-ios"  // Cisco IOS/IOS-XE
 	VendorCiscoNXOS Vendor = "cisco-nxos" // Cisco NX-OS
 	VendorHuawei    Vendor = "huawei"     // 华为 VRP
 	VendorJuniper   Vendor = "juniper"    // Juniper Junos
 	VendorRuijie    Vendor = "ruijie"     // 锐捷(类Cisco语法)
-	VendorHPComware Vendor = "comware"    // HP Comware(同H3C语法)
+	VendorHillstone Vendor = "hillstone"  // 山石 StoneOS(骨架profile，部分字段待验证)
+	VendorArray     Vendor = "array"      // Array APV 负载均衡(骨架profile，部分字段待验证)
 )
+
+// 内置厂商驱动以 YAML 文件形式维护在 vendors/ 目录(编译期嵌入，单一事实来源)：
+//
+//	新增/修正厂商 = 修改一个 YAML 文件(无需改 Go 代码)；
+//	使用方还可以通过 LoadVendorProfilesFile 在运行时加载自定义驱动覆盖/扩展内置定义。
+//
+//go:embed vendors/*.yaml
+var vendorFS embed.FS
 
 // VendorProfile 厂商驱动：把该厂商设备的"方言"整合为一组可复用的配置。
 //
-//	内置了 H3C/Cisco/华为/Juniper/锐捷 等常见厂商的 profile(见 VendorProfileOf)；
+//	内置了 H3C/Cisco/华为/Juniper/锐捷/山石/Array 等厂商的 profile(见 VendorProfileOf)；
 //	自定义厂商可通过 RegisterVendorProfile 注册，或从 JSON/YAML 配置文件批量加载
 //	(见 LoadVendorProfilesFile)。
 type VendorProfile struct {
@@ -51,50 +62,43 @@ type VendorProfile struct {
 var (
 	// vendorMu 保护 vendorProfiles(支持运行时注册/加载配置文件)
 	vendorMu sync.RWMutex
-	// vendorProfiles 内置厂商驱动
-	vendorProfiles = map[Vendor]*VendorProfile{
-		VendorH3C: {
-			Vendor:        VendorH3C,
-			PagingDisable: "screen-length disable",
-			SaveConfigCmd: "save force", // force 跳过 Y/N 确认
-		},
-		VendorHPComware: {
-			Vendor:        VendorHPComware,
-			PagingDisable: "screen-length disable",
-			SaveConfigCmd: "save force",
-		},
-		VendorCiscoIOS: {
-			Vendor:        VendorCiscoIOS,
-			PagingDisable: "terminal length 0",
-			SaveConfigCmd: "write memory",
-		},
-		VendorCiscoNXOS: {
-			Vendor:        VendorCiscoNXOS,
-			PagingDisable: "terminal length 0",
-			SaveConfigCmd: "copy running-config startup-config",
-		},
-		VendorRuijie: {
-			Vendor:        VendorRuijie,
-			PagingDisable: "terminal length 0",
-			SaveConfigCmd: "write memory",
-		},
-		VendorHuawei: {
-			Vendor:            VendorHuawei,
-			PagingDisable:     "screen-length 0 temporary",
-			SaveConfigCmd:     "save",
-			SaveConfigConfirm: regexp.MustCompile(`(?i)are you sure|y/n`),
-			SaveConfigAnswer:  "y",
-		},
-		VendorJuniper: {
-			Vendor:        VendorJuniper,
-			PagingDisable: "set cli screen-length 0",
-			SaveConfigCmd: "commit",
-		},
-	}
+	// vendorProfiles 厂商驱动注册表(启动时从内嵌 vendors/*.yaml 加载)
+	vendorProfiles map[Vendor]*VendorProfile
+	// vendorOnce 保证内嵌驱动只加载一次
+	vendorOnce sync.Once
 )
+
+// ensureVendors 加载内嵌厂商驱动(线程安全，仅执行一次)
+func ensureVendors() {
+	vendorOnce.Do(func() {
+		vendorMu.Lock()
+		defer vendorMu.Unlock()
+		if vendorProfiles == nil {
+			vendorProfiles = map[Vendor]*VendorProfile{}
+		}
+		entries, err := vendorFS.ReadDir("vendors")
+		if err != nil {
+			panic(fmt.Errorf("easyshell: read embedded vendor profiles: %w", err))
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".yaml") {
+				continue
+			}
+			data, err := vendorFS.ReadFile("vendors/" + e.Name())
+			if err != nil {
+				panic(fmt.Errorf("easyshell: read embedded vendor profile %s: %w", e.Name(), err))
+			}
+			if err = registerVendorProfiles(data, ".yaml"); err != nil {
+				// 内置文件由单元测试保证正确性；走到这里属于开发期错误
+				panic(fmt.Errorf("easyshell: load embedded vendor profile %s: %w", e.Name(), err))
+			}
+		}
+	})
+}
 
 // VendorProfileOf 返回厂商驱动；未知厂商返回 nil(仅 More 拦截器兜底，保存配置等需自行处理)。
 func VendorProfileOf(v Vendor) *VendorProfile {
+	ensureVendors()
 	vendorMu.RLock()
 	defer vendorMu.RUnlock()
 	return vendorProfiles[v]
@@ -107,6 +111,7 @@ func RegisterVendorProfile(p *VendorProfile) {
 	if p == nil || p.Vendor == VendorGeneric {
 		return
 	}
+	ensureVendors()
 	vendorMu.Lock()
 	defer vendorMu.Unlock()
 	vendorProfiles[p.Vendor] = p
@@ -124,7 +129,8 @@ func PagingDisableCommand(v Vendor) string {
 
 // LoadVendorProfilesFile 从 JSON/YAML 配置文件加载并注册厂商驱动(按扩展名识别格式)。
 //
-//	文件内容支持单个对象或对象数组，字段说明见 vendorProfileDef。
+//	文件内容支持单个对象或对象数组，字段均为 snake_case；
+//	同名厂商会覆盖内置定义；解析或规则编译失败时不产生部分注册。
 //	示例(yaml)：
 //	  - vendor: my-firewall
 //	    paging_disable: "set cli page 0"
@@ -144,6 +150,22 @@ func LoadVendorProfilesFile(path string) error {
 //
 //	format 为 ".json" 或 ".yaml"/".yml"；解析或规则编译失败时返回错误(不产生部分注册)。
 func LoadVendorProfiles(data []byte, format string) error {
+	ensureVendors()
+
+	profiles, err := parseVendorProfiles(data, format)
+	if err != nil {
+		return err
+	}
+	vendorMu.Lock()
+	defer vendorMu.Unlock()
+	for _, p := range profiles {
+		vendorProfiles[p.Vendor] = p
+	}
+	return nil
+}
+
+// parseVendorProfiles 解析并编译厂商驱动定义(不注册，返回后统一注册避免部分注册)
+func parseVendorProfiles(data []byte, format string) ([]*VendorProfile, error) {
 	var defs []vendorProfileDef
 	switch strings.ToLower(filepath.Ext(format)) {
 	case ".json":
@@ -151,7 +173,7 @@ func LoadVendorProfiles(data []byte, format string) error {
 			// 兼容单个对象
 			var one vendorProfileDef
 			if err2 := json.Unmarshal(data, &one); err2 != nil {
-				return err
+				return nil, err
 			}
 			defs = []vendorProfileDef{one}
 		}
@@ -159,28 +181,34 @@ func LoadVendorProfiles(data []byte, format string) error {
 		if err := yaml.Unmarshal(data, &defs); err != nil {
 			var one vendorProfileDef
 			if err2 := yaml.Unmarshal(data, &one); err2 != nil {
-				return err
+				return nil, err
 			}
 			defs = []vendorProfileDef{one}
 		}
 	default:
-		return fmt.Errorf("vendor: unsupported config format %q (.json/.yaml/.yml)", format)
+		return nil, fmt.Errorf("vendor: unsupported config format %q (.json/.yaml/.yml)", format)
 	}
 	if len(defs) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	// 先全部编译成功后再注册(避免部分注册)
 	profiles := make([]*VendorProfile, 0, len(defs))
 	for i := range defs {
 		p, err := defs[i].compile()
 		if err != nil {
-			return fmt.Errorf("vendor profile #%d: %w", i, err)
+			return nil, fmt.Errorf("vendor profile #%d: %w", i, err)
 		}
 		profiles = append(profiles, p)
 	}
-	vendorMu.Lock()
-	defer vendorMu.Unlock()
+	return profiles, nil
+}
+
+// registerVendorProfiles 解析并注册(供内嵌加载与公共加载共用)
+func registerVendorProfiles(data []byte, format string) error {
+	profiles, err := parseVendorProfiles(data, format)
+	if err != nil {
+		return err
+	}
 	for _, p := range profiles {
 		vendorProfiles[p.Vendor] = p
 	}
@@ -250,5 +278,5 @@ func SaveConfig(ctx context.Context, s Shell, v Vendor, onOut func(lines []strin
 type vendorError Vendor
 
 func (e vendorError) Error() string {
-	return "no vendor profile for " + string(e)
+	return "vendor " + string(e) + " has no save command"
 }

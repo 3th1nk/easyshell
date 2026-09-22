@@ -1,0 +1,6 @@
+# 华为 VRP
+vendor: huawei
+paging_disable: "screen-length 0 temporary"
+save_config_cmd: "save"
+save_config_confirm: "(?i)are you sure|y/n"
+save_config_answer: "y"

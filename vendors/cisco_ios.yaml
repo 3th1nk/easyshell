@@ -1,0 +1,4 @@
+# Cisco IOS / IOS-XE
+vendor: cisco-ios
+paging_disable: "terminal length 0"
+save_config_cmd: "write memory"

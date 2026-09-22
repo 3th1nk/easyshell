@@ -1,0 +1,4 @@
+# Cisco NX-OS
+vendor: cisco-nxos
+paging_disable: "terminal length 0"
+save_config_cmd: "copy running-config startup-config"

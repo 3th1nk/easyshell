@@ -1,0 +1,4 @@
+# H3C / Comware
+vendor: h3c
+paging_disable: "screen-length disable"
+save_config_cmd: "save force"   # force 跳过 Y/N 确认交互

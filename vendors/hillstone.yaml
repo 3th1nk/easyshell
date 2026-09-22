@@ -1,0 +1,5 @@
+# 山石 StoneOS(骨架：以下待验证字段留空，验证后补充)
+# 已知特征：HA 主备提示符后缀 ~(M)# / ~(B)#；命令行编辑退格怪癖已在过滤器内置处理
+vendor: hillstone
+# paging_disable: 待验证(StoneOS 文档确认后填写)
+# save_config_cmd: 待验证

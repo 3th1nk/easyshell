@@ -1,0 +1,4 @@
+# HP Comware(与 H3C 语法一致)
+vendor: comware
+paging_disable: "screen-length disable"
+save_config_cmd: "save force"
