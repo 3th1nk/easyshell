@@ -12,6 +12,7 @@ import (
 )
 
 // ScpUpload 经 SCP 协议上传本地文件到远端(exec 通道，远端需安装 scp)。
+//
 //	远端路径以 / 结尾时视为目录(自动拼接本地文件名)。
 //	ctx 取消时中止传输(关闭会话解除阻塞)。
 func ScpUpload(ctx context.Context, client *ssh.Client, localPath, remotePath string, opt Options) error {

@@ -78,6 +78,7 @@ func SftpUpload(cli *sftp.Client, localPath, remotePath string, opt Options) err
 }
 
 // sftpUploadFile 上传单个文件。
+//
 //	目标为目录时拼接本地文件名后重新检查；已存在且不允许覆盖时返回 os.ErrExist。
 func sftpUploadFile(cli *sftp.Client, localPath, remotePath string, force bool, progress func(transferred, total int64)) error {
 	println("DEBUG sftpUploadFile:", localPath, "->", remotePath)
@@ -140,6 +141,7 @@ func sftpUploadFile(cli *sftp.Client, localPath, remotePath string, force bool, 
 }
 
 // SftpDownload 经 SFTP 下载远端文件到本地。
+//
 //	本地路径为目录时下载到目录下(以远端文件名命名)；已存在且未指定 Force 时返回 os.ErrExist。
 func SftpDownload(cli *sftp.Client, remotePath, localPath string, opt Options) error {
 	for {

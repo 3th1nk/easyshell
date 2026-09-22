@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/v2/internal/core"
-	"github.com/3th1nk/easyshell/v2/record"
 	"github.com/3th1nk/easyshell/v2/internal/telnet"
+	"github.com/3th1nk/easyshell/v2/record"
 	"strings"
 	"time"
 )

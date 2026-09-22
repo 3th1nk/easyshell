@@ -2,8 +2,8 @@ package easyshell
 
 import (
 	"context"
-	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/interceptor"
+	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/record"
 	"github.com/stretchr/testify/assert"
 	"io"
