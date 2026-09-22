@@ -1,0 +1,101 @@
+package easyshell
+
+import (
+	"context"
+	"fmt"
+	"github.com/3th1nk/easygo/util"
+	"github.com/3th1nk/easyshell/v2/core"
+	"github.com/3th1nk/easyshell/v2/telnet"
+	"strings"
+	"time"
+)
+
+// TelnetConfig Telnet Shell 配置(零值合法)
+type TelnetConfig struct {
+	Config
+	// Credential Telnet 登录凭证
+	Credential TelnetCredential
+	// Echo 是否允许回显(取决于设备是否支持)，部分网络设备上无效(总是回显)
+	Echo bool
+	// SuppressGA 是否抑制 "go ahead" 命令
+	SuppressGA bool
+}
+
+// NewTelnetShell 创建 Telnet Shell 并完成登录。
+func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
+	client, err := telnet.NewClient(telnet.Config{
+		Addr:       fmt.Sprintf("%s:%d", cfg.Credential.Host, util.IfEmptyInt(cfg.Credential.Port, 23)),
+		User:       cfg.Credential.User,
+		Password:   cfg.Credential.Password,
+		Timeout:    cfg.Credential.Timeout,
+		Echo:       cfg.Echo,
+		SuppressGA: cfg.SuppressGA,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	shell, err := NewTelnetShellFromClient(client, cfg)
+	if err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+	shell.ownClient = true
+	return shell, nil
+}
+
+// NewTelnetShellFromClient 基于已有的 telnet 连接创建 Shell(调用方自行管理连接的关闭)。
+func NewTelnetShellFromClient(client *telnet.Client, cfg TelnetConfig) (*TelnetShell, error) {
+	r := core.NewReader(client, client, nil, cfg.Config)
+
+	// 触发一次回车，读取当前提示符(避免首次 Run 把提示符拼进输出)
+	_ = r.Write("")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = r.ReadUntilPrompt(ctx, func([]string) {})
+
+	headLine := trimEmptyLines(strings.Split(client.Welcome(), "\n"))
+	return &TelnetShell{
+		shellBase: shellBase{rw: r},
+		client:    client,
+		headLine:  headLine,
+	}, nil
+}
+
+// TelnetShell Telnet 交互式 Shell
+type TelnetShell struct {
+	shellBase
+	client    *telnet.Client
+	ownClient bool
+	headLine  []string
+}
+
+func (s *TelnetShell) Client() *telnet.Client {
+	return s.client
+}
+
+// HeadLine 返回登录后的欢迎信息
+func (s *TelnetShell) HeadLine() []string {
+	return s.headLine
+}
+
+// SetEcho 设置是否允许回显
+func (s *TelnetShell) SetEcho(echo bool) error {
+	return s.client.SetEcho(echo)
+}
+
+// SetSuppressGA 设置是否抑制 "go ahead" 命令
+func (s *TelnetShell) SetSuppressGA(suppressGA bool) error {
+	return s.client.SetSuppressGA(suppressGA)
+}
+
+// Close 关闭(幂等)
+func (s *TelnetShell) Close() error {
+	if s.client != nil {
+		if s.ownClient {
+			_ = s.client.Close()
+		}
+		s.client = nil
+	}
+	return s.shellBase.Close()
+}
