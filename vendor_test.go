@@ -71,3 +71,49 @@ func TestSaveConfig_Mock(t *testing.T) {
 	// 华为 profile 带 Y/N 确认交互
 	assert.NoError(t, SaveConfig(context.Background(), s, VendorHuawei, nil))
 }
+
+// TestLoadVendorProfiles 配置文件加载(JSON/YAML)与注册生效
+func TestLoadVendorProfiles(t *testing.T) {
+	// YAML(含确认交互与自定义错误模式)
+	yamlData := `
+- vendor: my-firewall
+  paging_disable: "set page 0"
+  save_config_cmd: "save config"
+  save_config_confirm: "(?i)are you sure"
+  save_config_answer: "y"
+  error_patterns:
+    - name: myfw-bad-cmd
+      pattern: '^ERROR: unknown keyword'
+- vendor: my-switch
+  paging_disable: "no paging"
+`
+	assert.NoError(t, LoadVendorProfiles([]byte(yamlData), ".yaml"))
+
+	p := VendorProfileOf("my-firewall")
+	if !assert.NotNil(t, p) {
+		return
+	}
+	assert.Equal(t, "set page 0", PagingDisableCommand("my-firewall"))
+	assert.Equal(t, "save config", p.SaveConfigCmd)
+	assert.NotNil(t, p.SaveConfigConfirm)
+	assert.True(t, p.SaveConfigConfirm.MatchString("Are you sure to continue?"))
+	assert.Len(t, p.ErrorPatterns, 1)
+
+	// JSON(单个对象)
+	jsonData := `{"vendor": "my-router", "paging_disable": "terminal page 0"}`
+	assert.NoError(t, LoadVendorProfiles([]byte(jsonData), ".json"))
+	assert.Equal(t, "terminal page 0", PagingDisableCommand("my-router"))
+
+	// 非法格式 → 错误
+	assert.Error(t, LoadVendorProfiles([]byte("data: no"), ".json"))
+	// 非法正则 → 错误且不产生部分注册
+	assert.Error(t, LoadVendorProfiles([]byte(`
+- vendor: bad-vendor
+  error_patterns:
+    - name: x
+      pattern: '[invalid'
+`), ".yaml"))
+	assert.Nil(t, VendorProfileOf("bad-vendor"), "不应产生部分注册")
+	// 未知格式
+	assert.Error(t, LoadVendorProfiles([]byte("x"), ".toml"))
+}

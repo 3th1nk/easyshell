@@ -8,6 +8,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.31.0
 	golang.org/x/text v0.21.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -19,5 +20,4 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
