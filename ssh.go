@@ -8,14 +8,12 @@ import (
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/record"
-	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"net"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -365,9 +363,7 @@ type SshShell struct {
 	shellBase
 	client    *ssh.Client
 	session   *ssh.Session
-	sftpCli   *sftp.Client
-	sftpMu    sync.Mutex // 保护 sftpCli(SFTP取消时会在其他 goroutine 中重建)
-	closeAll  func()     // 级联关闭(目标+跳板机链)
+	closeAll  func() // 级联关闭(目标+跳板机链)
 	ownClient bool
 	headLine  []string
 }
@@ -387,15 +383,6 @@ func (s *SshShell) HeadLine() []string {
 
 // Close 关闭(幂等)：先关闭 SFTP/会话，再按所有权关闭目标与跳板机连接。
 func (s *SshShell) Close() (err error) {
-	s.sftpMu.Lock()
-	if s.sftpCli != nil {
-		if e := s.sftpCli.Close(); e != nil && err == nil {
-			err = e
-		}
-		s.sftpCli = nil
-	}
-	s.sftpMu.Unlock()
-
 	if s.session != nil {
 		if e := s.session.Close(); e != nil && err == nil {
 			err = e

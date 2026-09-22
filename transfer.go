@@ -47,17 +47,30 @@ func firstTransferOpt(opts []TransferOptions) TransferOptions {
 	return TransferOptions{}
 }
 
-// sftpClient 获取缓存的 sftp 客户端(内部使用)
-func (s *SshShell) sftpClient() (*sftp.Client, error) {
-	s.sftpMu.Lock()
-	defer s.sftpMu.Unlock()
-	if s.sftpCli == nil {
-		var err error
-		if s.sftpCli, err = sftp.NewClient(s.client, sftp.MaxPacket(defaultSftpMaxPacket)); err != nil {
-			return nil, &core.Error{Op: core.OpSftp, Addr: s.client.RemoteAddr().String(), Err: err}
-		}
+// newSftpClient 创建一次性 sftp 客户端(调用方用完自行 Close)
+func (s *SshShell) newSftpClient() (*sftp.Client, error) {
+	cli, err := sftp.NewClient(s.client, sftp.MaxPacket(defaultSftpMaxPacket))
+	if err != nil {
+		return nil, &core.Error{Op: core.OpSftp, Addr: s.client.RemoteAddr().String(), Err: err}
 	}
-	return s.sftpCli, nil
+	return cli, nil
+}
+
+// sftpWithCtx 为 sftp 传输附加 context 取消能力：取消时关闭客户端解除阻塞
+func (s *SshShell) sftpWithCtx(ctx context.Context, cli *sftp.Client, fn func() error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	errC := make(chan error, 1)
+	go func() { errC <- fn() }()
+	select {
+	case err := <-errC:
+		return err
+	case <-ctx.Done():
+		_ = cli.Close()
+		<-errC
+		return ctx.Err()
+	}
 }
 
 // Upload 上传本地文件到远端。
@@ -79,7 +92,7 @@ func (s *SshShell) Upload(ctx context.Context, localPath, remotePath string, opt
 	useSftp := opt.Protocol != ProtocolScp
 	var cli *sftp.Client
 	if useSftp {
-		c, err := s.sftpClient()
+		c, err := s.newSftpClient()
 		if err != nil {
 			if opt.Protocol == ProtocolSftp {
 				return err // 显式指定SFTP时不降级
@@ -87,6 +100,7 @@ func (s *SshShell) Upload(ctx context.Context, localPath, remotePath string, opt
 			useSftp = false
 		} else {
 			cli = c
+			defer cli.Close()
 		}
 	}
 
@@ -116,20 +130,23 @@ func (s *SshShell) Upload(ctx context.Context, localPath, remotePath string, opt
 func (s *SshShell) Download(ctx context.Context, remotePath, localPath string, opts ...TransferOptions) error {
 	opt := firstTransferOpt(opts)
 
-	if opt.Protocol != ProtocolScp {
-		cli, err := s.sftpClient()
-		if err == nil {
-			return s.sftpWithCtx(ctx, cli, func() error {
-				return transfer.SftpDownload(cli, remotePath, localPath, transfer.Options{
-					Force:    opt.Force,
-					Progress: opt.Progress,
-				})
+	cli, err := s.newSftpClient()
+	if err == nil {
+		defer cli.Close()
+		err = s.sftpWithCtx(ctx, cli, func() error {
+			return transfer.SftpDownload(cli, remotePath, localPath, transfer.Options{
+				Force:    opt.Force,
+				Progress: opt.Progress,
 			})
+		})
+		if err == nil {
+			return nil
 		}
 		if opt.Protocol == ProtocolSftp {
 			return err // 显式指定SFTP时不降级
 		}
 	}
+	// SFTP不可用 → 降级SCP
 	return transfer.ScpDownload(ctx, s.client, remotePath, localPath, transfer.Options{
 		Force:    opt.Force,
 		Progress: opt.Progress,
@@ -140,13 +157,11 @@ func (s *SshShell) Download(ctx context.Context, remotePath, localPath string, o
 //
 //	仅支持具备 SFTP 子系统的设备；无 SFTP 的设备可用 s.Run(ctx, "rm -f ...") 代替。
 func (s *SshShell) Delete(ctx context.Context, remotePath string) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	cli, err := s.sftpClient()
+	cli, err := s.newSftpClient()
 	if err != nil {
 		return err
 	}
+	defer cli.Close()
 	return transfer.SftpRemove(cli, remotePath)
 }
 
@@ -204,27 +219,4 @@ func isAllHex(s string) bool {
 		}
 	}
 	return len(s) > 0
-}
-
-// sftpWithCtx 为 sftp 传输附加 context 取消能力：取消时关闭 sftp 连接中止传输，
-//
-//	连接缓存置空，下次调用自动重建。
-func (s *SshShell) sftpWithCtx(ctx context.Context, cli *sftp.Client, fn func() error) error {
-	if ctx == nil {
-		return fn()
-	}
-	errC := make(chan error, 1)
-	go func() { errC <- fn() }()
-	select {
-	case err := <-errC:
-		return err
-	case <-ctx.Done():
-		s.sftpMu.Lock()
-		if s.sftpCli == cli {
-			_ = cli.Close()
-			s.sftpCli = nil
-		}
-		s.sftpMu.Unlock()
-		return ctx.Err()
-	}
 }
