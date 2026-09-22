@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/3th1nk/easyshell/pkg/interceptor"
+	"github.com/3th1nk/easyshell/v2/interceptor"
 	"regexp"
 )
 

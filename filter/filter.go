@@ -54,3 +54,21 @@ func NewFilter(opts ...Options) Filter {
 func NewNoop() Filter {
 	return &fsm{}
 }
+
+type chainFilter struct{ first, second Filter }
+
+// Chain 组合两个过滤器：数据先经过 first 再经过 second。
+//	Pending/DropPending/Flush 同时作用于两者。
+func Chain(first, second Filter) Filter {
+	return &chainFilter{first: first, second: second}
+}
+
+func (c *chainFilter) Push(p []byte) []byte  { return c.second.Push(c.first.Push(p)) }
+func (c *chainFilter) Pending() []byte       { return c.second.Pending() }
+func (c *chainFilter) DropPending()          { c.first.DropPending(); c.second.DropPending() }
+func (c *chainFilter) Flush() []byte {
+	if rest := c.first.Flush(); len(rest) > 0 {
+		c.second.Push(rest)
+	}
+	return c.second.Flush()
+}

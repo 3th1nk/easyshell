@@ -3,66 +3,45 @@ package core
 import (
 	"context"
 	"errors"
-	"github.com/3th1nk/easygo/util/strUtil"
 )
 
-func isOpError(err error, op string) bool {
-	// 使用 errors.As 而非类型断言，支持被 wrap 后的错误（如 fmt.Errorf("%w", err)）
-	var e *Error
-	if errors.As(err, &e) {
-		return e.Op == op
-	}
-	return false
-}
+// Op 错误的操作类型
+type Op string
 
-func IsTimeout(err error) bool { return isOpError(err, "timeout") }
+const (
+	OpDial     Op = "dial"     // 建立连接失败
+	OpAuth     Op = "auth"     // 身份认证失败
+	OpSession  Op = "session"  // 创建会话失败
+	OpTerm     Op = "term"     // 请求伪终端失败
+	OpShell    Op = "shell"    // 请求交互式 shell 失败
+	OpRead     Op = "read"     // 读取输出失败
+	OpWrite    Op = "write"    // 写入失败
+	OpSftp     Op = "sftp"     // SFTP 操作失败
+	OpTimeout  Op = "timeout"  // 超时
+	OpCanceled Op = "canceled" // 取消
+)
 
-func IsCanceled(err error) bool { return isOpError(err, "canceled") }
-
-func IsDial(err error) bool { return isOpError(err, "dial") }
-
-func IsAuth(err error) bool { return isOpError(err, "auth") }
-
+// Error 带操作类型与远端地址的错误，支持 errors.As/Is 解包
 type Error struct {
-	// Op is the operation which caused the error, such as "dial" or "auth".
-	Op string
-	// For operations involving a remote network connection.
-	// like Dial, Read, or Write, Addr is the remote address of that connection.
+	// Op 发生错误的操作
+	Op Op
+	// Addr 远端地址(涉及网络连接的操作)
 	Addr string
-	// Err is the error that occurred during the operation.
+	// Err 底层错误
 	Err error
-}
-
-// 是否是超时错误
-func (e *Error) Timeout() bool { return e.Op == "timeout" }
-
-// 是否是取消错误
-func (e *Error) Canceled() bool { return e.Op == "canceled" }
-
-// 是否是连接错误
-func (e *Error) Dial() bool { return e.Op == "dial" }
-
-// 是否是身份认证错误
-func (e *Error) Auth() bool { return e.Op == "auth" }
-
-func (e *Error) Name() string {
-	return "Shell" + strUtil.UcFirst(e.Op) + "Error"
 }
 
 func (e *Error) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
-
 	switch e.Op {
-	case "timeout":
+	case OpTimeout:
 		return context.DeadlineExceeded.Error()
-
-	case "canceled":
+	case OpCanceled:
 		return context.Canceled.Error()
-
 	default:
-		s := e.Op + " error"
+		s := string(e.Op) + " error"
 		if e.Err != nil {
 			s += ": " + e.Err.Error()
 		}
@@ -74,3 +53,45 @@ func (e *Error) Error() string {
 }
 
 func (e *Error) Unwrap() error { return e.Err }
+
+func isOpError(err error, op Op) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Op == op
+}
+
+// IsTimeout 是否超时错误(同时兼容标准库 context.DeadlineExceeded)
+func IsTimeout(err error) bool {
+	return isOpError(err, OpTimeout) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// IsCanceled 是否取消错误(同时兼容标准库 context.Canceled)
+func IsCanceled(err error) bool {
+	return isOpError(err, OpCanceled) || errors.Is(err, context.Canceled)
+}
+
+// IsDial 是否建立连接失败
+func IsDial(err error) bool { return isOpError(err, OpDial) }
+
+// IsAuth 是否身份认证失败
+func IsAuth(err error) bool { return isOpError(err, OpAuth) }
+
+// IsClosed 是否已关闭错误
+func IsClosed(err error) bool { return errors.Is(err, ErrClosed) }
+
+// OpOf 返回错误的操作类型(覆盖 dial/auth/session/term/read/write/sftp 等全部类型)
+func OpOf(err error) (Op, bool) {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Op, true
+	}
+	return "", false
+}
+
+var (
+	// ErrClosed shell 已关闭
+	ErrClosed = errors.New("easyshell: shell is closed")
+	// ErrConcurrentRead 同一时刻只允许一个读操作
+	ErrConcurrentRead = errors.New("easyshell: concurrent read not allowed")
+	// ErrEmptyCommand 命令为空
+	ErrEmptyCommand = errors.New("easyshell: empty command")
+)

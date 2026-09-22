@@ -1,44 +1,71 @@
 package core
 
 import (
-	"github.com/3th1nk/easyshell/pkg/filter"
+	"github.com/3th1nk/easyshell/v2/filter"
 	"io"
 	"regexp"
 	"time"
 )
 
+// StderrPolicy stderr 输出的处理策略
+type StderrPolicy uint8
+
+const (
+	// StderrError 默认：stderr 内容聚合后作为读取错误返回(不会覆盖超时/取消错误)。
+	//	适用于"stderr 输出即错误信号"的场景；命令向 stderr 输出告警信息的场景请改用其他策略
+	StderrError StderrPolicy = iota
+	// StderrOutput stderr 行合并进 onOut 输出回调
+	StderrOutput
+	// StderrIgnore 丢弃 stderr 内容
+	StderrIgnore
+)
+
+// Config 读取过程的配置(零值合法，未设置的字段使用库默认值)。
+//
+// 配置以值传入，库内部使用副本，不会修改调用方传入的结构体。
 type Config struct {
-	// 输出 io.Reader 中读取的原始数据，用于上层调试
+	// RawOut 原始输出的捕获 writer(位于过滤器之前，即未过滤、未解码的原始字节)。
+	//	可挂接 record.Writer 用于录制
 	RawOut io.Writer
-
-	// 从 io.Reader 中读取到数据后，用来过滤特殊字符的自定义函数，在 Decoder 前执行
-	Filter filter.IFilter
-
-	// 从 io.Reader 中读取到数据后，用来解码的自定义函数
+	// RawIn 输入方向的捕获 writer(Write/WriteRaw 写入连接前捕获，拦截器的自动应答也会被捕获)。
+	//	可挂接 record.Writer.Input()；注意捕获的内容可能包含密码，请配合录制文件的 secret 打码机制使用
+	RawIn io.Writer
+	// Filter 自定义过滤器，串联在内置过滤管道之前(其输出仍会经过内置管道)。
+	//	传入 filter.NewNoop() 仅关闭内置字符清理；nil 时使用内置管道
+	Filter filter.Filter
+	// FilterOptions 内置过滤管道的配置，nil 时使用 filter.DefaultOptions()；仅 Filter==nil 时生效
+	FilterOptions *filter.Options
+	// Decoder 自定义解码函数(作用于完整行)。
+	//	契约：目标编码的多字节字符中不会出现 0x0A 字节(GBK/GB18030/UTF-8 均满足，UTF-16 不满足)，
+	//	因为本库先按 \n 拆分完整行、再逐行解码，以保证多字节字符跨网络分包不被截断
 	Decoder func(b []byte) ([]byte, error)
-
-	// 命令行提示符的匹配规则
+	// PromptRegex 命令行提示符的匹配规则；nil 时使用内置默认规则
 	PromptRegex []*regexp.Regexp
-
-	// 是否自动纠正命令行提示符，仅当未指定 PromptRegex 时有效
-	//	该参数为true时，会在默认规则第一次匹配到结束符时尝试修正匹配规则，某些情况下可能修正后的规则不如默认规则灵活，慎用
+	// AutoPrompt 是否自动纠正提示符规则：仅当未设置 PromptRegex 时生效，
+	//	默认规则首次命中提示符后，基于主机名生成更精确的规则(部分场景可能不如默认规则灵活，慎用)
 	AutoPrompt bool
-
-	// 是否输出命令行提示符
+	// ShowPrompt 是否把提示符行作为输出返回
 	ShowPrompt bool
-
-	// 调用 ReadToEndLine 时的确认次数
+	// ReadConfirm 判定命令执行完成的确认次数(提示符命中后，连续 N 个确认周期无新数据才返回)，默认 3
 	ReadConfirm int
-	// 调用 ReadToEndLine 时的确认间隔
+	// ReadConfirmWait 确认周期，默认 100ms
 	ReadConfirmWait time.Duration
-
-	// 调用 ReadXXX 函数前的自定义回调函数
+	// BeforeRead 每次 Read 前的回调(如 CmdShell 的进程懒启动)；返回错误则中止本次读取
 	BeforeRead func() error
-
-	// 延迟触发 OnOut 的时间间隔
-	//   如果需要在超过指定间隔或输出内容超过指定长度后再触发 OnOut、而不是实时触发 OnOut，可以指定 LazyOutInterval 和 LazyOutSize
+	// LazyOutInterval 延迟触发 onOut 的时间间隔(0 表示关闭延迟)
 	LazyOutInterval time.Duration
-	// 延迟触发 OnOut 的缓冲区大小
-	//   如果需要在超过指定间隔或输出内容超过指定长度后再触发 OnOut、而不是实时触发 OnOut，可以指定 LazyOutInterval 和 LazyOutSize
+	// LazyOutSize 延迟触发 onOut 的累计字节数(0 表示不按大小触发)
 	LazyOutSize int
+	// Stderr stderr 处理策略，默认 StderrError
+	Stderr StderrPolicy
+}
+
+func (cfg Config) normalize() Config {
+	if cfg.ReadConfirmWait <= 0 {
+		cfg.ReadConfirmWait = 100 * time.Millisecond
+	}
+	if cfg.ReadConfirm <= 0 {
+		cfg.ReadConfirm = 3
+	}
+	return cfg
 }
