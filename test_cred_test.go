@@ -1,6 +1,8 @@
 package easyshell
 
 import (
+	"strings"
+
 	"github.com/3th1nk/easygo/util"
 	"github.com/3th1nk/easyshell/v2/internal/testutil"
 )
@@ -40,4 +42,21 @@ func telnetCredFromEnv(name string) (TelnetCredential, bool) {
 		User:     c.User,
 		Password: c.Password,
 	}, true
+}
+
+// hasLine 判断是否包含所有关键词的行(测试断言辅助)
+func hasLine(lines []string, find ...string) bool {
+	for _, s := range lines {
+		matched := true
+		for _, f := range find {
+			if !strings.Contains(s, f) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }

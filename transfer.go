@@ -131,26 +131,22 @@ func (s *SshShell) Download(ctx context.Context, remotePath, localPath string, o
 	opt := firstTransferOpt(opts)
 
 	cli, err := s.newSftpClient()
-	if err == nil {
-		defer cli.Close()
-		err = s.sftpWithCtx(ctx, cli, func() error {
-			return transfer.SftpDownload(cli, remotePath, localPath, transfer.Options{
-				Force:    opt.Force,
-				Progress: opt.Progress,
-			})
+	if err != nil {
+		// SFTP客户端创建失败(设备不支持SFTP子系统) → 降级SCP
+		return transfer.ScpDownload(ctx, s.client, remotePath, localPath, transfer.Options{
+			Force: opt.Force,
 		})
-		if err == nil {
-			return nil
-		}
-		if opt.Protocol == ProtocolSftp {
-			return err // 显式指定SFTP时不降级
-		}
 	}
-	// SFTP不可用 → 降级SCP
-	return transfer.ScpDownload(ctx, s.client, remotePath, localPath, transfer.Options{
-		Force:    opt.Force,
-		Progress: opt.Progress,
-	})
+	defer cli.Close()
+	if err = s.sftpWithCtx(ctx, cli, func() error {
+		return transfer.SftpDownload(cli, remotePath, localPath, transfer.Options{
+			Force:    opt.Force,
+			Progress: opt.Progress,
+		})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Delete 删除远端文件/目录(目录递归删除)。

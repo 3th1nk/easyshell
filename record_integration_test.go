@@ -74,7 +74,9 @@ func TestRecordAndReplay(t *testing.T) {
 	}
 	defer replayPlayer.Close()
 
-	r := core.NewReader(io.Discard, replayPlayer.AsReader(record.PlayOptions{Speed: -1}), nil, core.Config{})
+	ar := replayPlayer.AsReader(record.PlayOptions{Speed: -1})
+	defer ar.Close()
+	r := core.NewReader(io.Discard, ar, nil, core.Config{})
 	var replayLines []string
 	assert.NoError(t, r.ReadUntilPrompt(ctx, func(arr []string) {
 		replayLines = append(replayLines, arr...)

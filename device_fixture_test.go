@@ -74,7 +74,9 @@ func TestUnit_ReplayDeviceFixture(t *testing.T) {
 	//	快速重放(Speed:-1)会瞬间倾倒全部帧，因此用较长的确认窗口判定会话结束，
 	//	一次 Read 消费整个会话(横幅+命令回显+配置输出+More翻页+提示符)
 	cfg := core.Config{ReadConfirmWait: 500 * time.Millisecond, ReadConfirm: 2}
-	replay := core.NewReader(io.Discard, player.AsReader(record.PlayOptions{Speed: -1}), nil, cfg)
+	ar := player.AsReader(record.PlayOptions{Speed: -1})
+	defer ar.Close()
+	replay := core.NewReader(io.Discard, ar, nil, cfg)
 	defer replay.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

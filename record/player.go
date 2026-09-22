@@ -102,11 +102,28 @@ func (p *Player) Play(ctx context.Context, out io.Writer, opts ...PlayOptions) e
 // AsReader 返回按时序输出 DirOut 帧内容的 Reader，
 //
 //	可直接交给 core.NewReader 实现交互式重放(复用提示符检测与拦截器)。
-func (p *Player) AsReader(opts ...PlayOptions) io.Reader {
+//	返回值同时实现 io.Closer：不再读取时应 Close 以终止后台回放 goroutine。
+func (p *Player) AsReader(opts ...PlayOptions) io.ReadCloser {
 	pr, pw := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		_ = p.Play(context.Background(), pw, opts...)
-		_ = pw.Close()
+		defer pw.Close()
+		if err := p.Play(ctx, pw, opts...); err != nil {
+			_ = pw.CloseWithError(err)
+		}
 	}()
-	return pr
+	return &asReader{pr: pr, cancel: cancel}
+}
+
+type asReader struct {
+	pr     *io.PipeReader
+	cancel context.CancelFunc
+}
+
+func (r *asReader) Read(p []byte) (int, error) { return r.pr.Read(p) }
+
+// Close 停止后台回放并关闭底层管道
+func (r *asReader) Close() error {
+	r.cancel()
+	return r.pr.Close()
 }

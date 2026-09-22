@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"github.com/3th1nk/easyshell/v2/internal/core"
 	"net"
 	"strings"
@@ -301,7 +302,7 @@ func (c *Client) readByte() (b byte, retry bool, err error) {
 type unknownCommandError byte
 
 func (e unknownCommandError) Error() string {
-	return "telnet: unknown command code"
+	return fmt.Sprintf("telnet: unknown command code %d", byte(e))
 }
 
 func errUnknownCommand(b byte) error {
