@@ -2,6 +2,12 @@
 
 ## 已发布
 
+### v2.3.0
+- RunOptions.Timeout 命令级超时(独立于 ctx)
+- 错误模式库扩充：Cisco NX-OS/华为第五种；厂商样例 fixtures 化
+- 厂商驱动双验证：山石/Array(官方手册+生产真机)、锐捷(官方5份手册)
+- Telnet 自定义登录正则；NewErrorPattern/VendorErrorPatterns/DisablePaging 导出
+
 ### v2.1.0
 - 厂商驱动体系(VendorProfile)：禁用分页/保存配置(含确认交互)/错误模式整合，支持自定义注册
 - 长连接保活(KeepAlive)：周期探测 + 失败阈值 + 死亡回调

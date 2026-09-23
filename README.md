@@ -159,8 +159,8 @@ go get github.com/3th1nk/easyshell/v2
 
 - 禁用分页(获取长配置推荐先禁用分页，比 More 逐页应答更快)
 ```go
-    s.Run(ctx, easyshell.PagingDisableCommand(easyshell.VendorH3C), nil) // screen-length disable
-    s.Run(ctx, "display saved-configuration", onOut)                     // More 拦截器仍作为兜底
+    easyshell.DisablePaging(ctx, s, easyshell.VendorH3C) // 尽力禁用：设备不识别时 More 拦截器兜底、不报错
+    s.Run(ctx, "display saved-configuration", onOut)
 ```
 
 - Telnet / 本地命令

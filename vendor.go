@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"github.com/3th1nk/easyshell/v2/internal/core"
@@ -307,6 +308,40 @@ func SaveConfig(ctx context.Context, s Shell, v Vendor, onOut func(lines []strin
 			interceptor.Pattern(`(?i)continue\s*\?`, "\n", interceptor.LastLine, true))
 	}
 	return s.Run(ctx, p.SaveConfigCmd, onOut, opts)
+}
+
+// DisablePaging 尽力禁用输出分页(使用厂商 profile 的禁用分页命令)。
+//
+//	设备不识别该命令(错误检测命中)时不视为错误、返回 nil——分页由 More 拦截器兜底；
+//	厂商无禁用分页命令(含未知厂商)时直接返回 nil；连接/超时等硬错误仍然返回。
+//	典型用法：DisablePaging(ctx, s, easyshell.VendorH3C) 后再获取长配置输出。
+func DisablePaging(ctx context.Context, s Shell, v Vendor) error {
+	cmd := PagingDisableCommand(v)
+	if cmd == "" {
+		return nil
+	}
+	if err := s.Run(ctx, cmd, nil); err != nil {
+		var de *DeviceError
+		if errors.As(err, &de) { // 设备不识别命令:More 拦截器兜底，不中断调用方流程
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// VendorErrorPatterns 返回指定厂商的错误检测规则(内置默认规则 + 厂商特有规则)，
+// 可直接赋值给 Config.ErrorPatterns。未知厂商返回内置默认规则。
+//
+//	Shell 创建流程不感知厂商，厂商级规则需显式接入：
+//	  cfg := easyshell.Config{ErrorPatterns: easyshell.VendorErrorPatterns(easyshell.VendorHillstone)}
+func VendorErrorPatterns(v Vendor) []*ErrorPattern {
+	patterns := DefaultErrorPatterns()
+	p := VendorProfileOf(v)
+	if p == nil {
+		return patterns
+	}
+	return append(patterns, p.ErrorPatterns...)
 }
 
 type vendorError Vendor

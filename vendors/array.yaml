@@ -10,6 +10,8 @@
 #     "config terminal force" 强制进入，需应答确认 "YES"(interceptor 可处理)
 #   - write memory 需在 Config 级别执行：调用 SaveConfig 前需先自行进入配置模式
 # 已知特征：提示符以 $ 结尾；输入超长回缩时发送 `$`+退格+`\r\n\r` 序列(过滤器已内置处理)
+# 厂商级错误规则需显式接入(Shell 创建不感知厂商)：
+#   cfg.ErrorPatterns = easyshell.VendorErrorPatterns(easyshell.VendorArray)
 vendor: array
 paging_disable: no pager
 save_config_cmd: write memory

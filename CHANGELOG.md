@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.3.0
 
 ### 新增
 - 根包导出 `NewErrorPattern`(自定义错误检测规则的构建函数，与 `ErrorPattern`/`DefaultErrorPatterns` 配套)
@@ -12,6 +12,12 @@
   `Error: Too many parameters`；锐捷等类Cisco语法由 cisco-* 规则覆盖。
   出处与样例归档至 docs/ERRDETECT-REFERENCES.md；
   宽松模式(`% Error`/`command not found`)经评估刻意不纳入(误报代价高于漏报)
+- `DisablePaging(ctx, s, vendor)`：尽力禁用输出分页——设备不识别该命令时自动由
+  More 拦截器兜底、不中断调用方流程(对比直接 Run 分页命令会因错误检测而失败)
+- `VendorErrorPatterns(vendor)`：内置默认+厂商特有错误规则合并接入(此前
+  VendorProfile.ErrorPatterns 仅加载未接线)；厂商错误样例沉淀为
+  internal/core/testdata/errdetect fixtures(表驱动测试，追加样例无需改测试代码)
+- pkg.go.dev 可运行示例：DisablePaging/RunOptions.Timeout/NewErrorPattern/Telnet 登录正则
 - 山石/Array 厂商驱动从骨架升级为官方手册+生产真机双验证：山石
   `paging_disable: terminal length 0`/`save_config_cmd: save`(官方确认任何模式可执行)、
   Array `paging_disable: no pager`/`save_config_cmd: write memory`；山石新增厂商级错误

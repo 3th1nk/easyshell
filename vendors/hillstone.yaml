@@ -10,6 +10,8 @@
 #   (string 缺省时直接覆盖原有配置文件)
 # 错误输出：官方三种 Unrecognized/Incomplete/Ambiguous command(手册表格为简化文本，
 #   真机实际带 "% " 前缀，生产错误正则 ^%\s)；厂商级规则按官方文本精确匹配 + % 兜底
+# 厂商级错误规则需显式接入(Shell 创建不感知厂商)：
+#   cfg.ErrorPatterns = easyshell.VendorErrorPatterns(easyshell.VendorHillstone)
 vendor: hillstone
 paging_disable: terminal length 0
 save_config_cmd: save
