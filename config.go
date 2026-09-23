@@ -27,6 +27,9 @@ type ErrorPattern = core.ErrorPattern
 // DefaultErrorPatterns 内置默认错误检测规则(仅命令解析器错误)
 func DefaultErrorPatterns() []*core.ErrorPattern { return core.DefaultErrorPatterns() }
 
+// NewErrorPattern 构建自定义检测规则(pattern 非法时返回 nil)
+func NewErrorPattern(name, pattern string) *ErrorPattern { return core.NewErrorPattern(name, pattern) }
+
 // KeepAliveConfig 长连接保活配置
 type KeepAliveConfig = core.KeepAliveConfig
 

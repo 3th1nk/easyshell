@@ -5,7 +5,7 @@
 * 支持自定义提示符匹配规则，默认规则支持自动纠正(AutoPrompt)；提示符/拦截器匹配只扫尾部窗口，超大配置行(16MB+)无线性退化
 * 默认自动识别 GB18030 编码并转换为 UTF8，支持自定义解码器；只解码完整行，多字节字符跨网络分包不被截断
 * 有状态字符过滤器：转义序列(含 OSC/DCS 等字符串序列)跨分包安全剔除、退格按 rune 回退、EL/ED 擦除实时作用于当前行、CRLF 归一化(含 H3C `\r\r\n`)
-* 内置拦截器：密码交互(Password)、选项交互(Yes/No)、网络设备自动翻页(More)、继续执行(Continue)；拦截器命中后先丢弃未完成行再写入应答，无内容粘连
+* 内置拦截器：密码交互(Password)、选项交互(AlwaysYes/AlwaysNo)、网络设备自动翻页(More)、继续执行(Continue)；拦截器命中后先丢弃未完成行再写入应答，无内容粘连
 * 延迟返回输出内容(按时间间隔或累计大小)；stderr 三种处理策略(Error/Output/Ignore)
 * 录制原始输入输出并回放(record 包，二进制帧格式，含时间戳与方向)
 * 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *easyshell.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
@@ -122,11 +122,10 @@ go get github.com/3th1nk/easyshell/v2
 
 - 文件传输校验与进度
 ```go
-    s.SftpUpload(ctx, "local.bin", "/remote/path.bin", easyshell.SftpOptions{
-        Force:     true,
-        HashVerify: true, // 上传后远端 md5sum 比对
-        Progress:  func(transferred, total int64) { fmt.Printf("\r%d/%d", transferred, total) },
-    })
+    err = s.Upload(ctx, "local.bin", "/remote/path.bin", easyshell.TransferOptions{
+        Force:    true, // 目标已存在时覆盖
+        Progress: func(transferred, total int64) { fmt.Printf("\r%d/%d", transferred, total) },
+    }) // 上传后自动 md5sum 校验(NoVerify 关闭)；协议自动选择，SFTP 不可用时降级 SCP
 ```
 
 - 录制导出为 asciinema(可直接用播放器回放)
@@ -136,7 +135,7 @@ go get github.com/3th1nk/easyshell/v2
 
 - 设备错误检测(输出中的命令解析错误自动失败)
 ```go
-    // 默认开启：命中 H3C/Cisco/华为/Juniper 命令解析错误即返回 *core.DeviceError
+    // 默认开启：命中 H3C/Cisco/华为/Juniper 命令解析错误即返回 *easyshell.DeviceError
     //  (登录横幅不参与检测，登录即输出错误样式信息的设备不会误报)
     err = s.Run(ctx, "disp lay ver", onOut)
     var de *easyshell.DeviceError
@@ -207,7 +206,7 @@ EASYSHELL_TEST_H3C=admin:password@192.0.2.4
 
 - `onOut` 回调在读取流程中**同步调用**：阻塞它会推迟读取与提示符判定(设备可能在等待拦截器应答)。
   需要重处理时请在回调内自行异步化(缓冲 + goroutine)，丢弃/堆积策略由业务决定
-- 同一 Shell 并发 Read 会返回 `core.ErrConcurrentRead`(读取过程中可并发查询 Prompt/IsPrompt/InConfigMode)
+- 同一 Shell 并发 Read 会返回 `easyshell.ErrConcurrentRead`(读取过程中可并发查询 Prompt/IsPrompt/InConfigMode)
 
 ## 已知限制
 
