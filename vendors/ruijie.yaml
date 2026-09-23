@@ -1,13 +1,14 @@
-# 锐捷 RGOS(官方手册核对：《RG-S5700H系列 RGOS 11.4(1)B42 配置手册》V2.0)
+# 锐捷 RGOS(官方手册核对：RGOS 11.4(1)B42 与 12.5/12.6 系列共5份配置指南)
 # 提示符体系(官方§1.3.2，与Cisco同构)：Ruijie> → enable(特权口令，interceptor.Password
 #   可处理) → Ruijie# → Ruijie(config)#；InConfigMode 对锐捷生效
 # 错误样式(官方§1.3.6，与Cisco IOS完全一致，由全局cisco-*规则覆盖，无需厂商级规则)：
 #   % Ambiguous command: "show c" / % Invalid input detected at '^' marker. / % Incomplete command.
-# 保存配置(官方)：write 或 copy running-config startup-config，执行模式直接执行、无确认交互；
-#   注意官方语法为 write(手册无 write memory 写法，虽 RGOS 兼容Cisco语法但以官方为准)
-# 分页：Space 滚一页/Return 滚一行(官方§1.3.8)，More 拦截器兜底有效；
-#   terminal length 0 为 RGOS 通用CLI语法(与Cisco兼容)，本配置手册未收录该命令(命令
-#   参考手册级别)，待真机/命令参考再证——失败时自动退回 More 拦截器兜底，无副作用
+#   (RGOS 12.5/12.6 四份手册同样收录 % Invalid input detected 样式)
+# 保存配置(官方)：write(11.x："执行write命令或copy running-config startup-config"；
+#   12.x："保存配置write操作")，执行模式直接执行、无确认交互
+# 分页(官方确认)：terminal length screen-length 配置单屏最大行数(缺省24行)，
+#   12.x 四份手册收录；terminal length 0 关闭分页(与Cisco同构)；
+#   Space 滚一页/Return 滚一行，More 拦截器兜底有效
 vendor: ruijie
 paging_disable: "terminal length 0"
 save_config_cmd: "write"
