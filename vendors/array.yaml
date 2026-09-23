@@ -1,5 +1,11 @@
-# Array APV 负载均衡(骨架：以下待验证字段留空，验证后补充)
+# Array APV 负载均衡
+# 真机经验(生产环境验证)：enable(密码应答，可用 interceptor.Password 处理)提权后
+# config terminal；禁用分页 no pager(配置模式内)；保存配置 write memory(无确认交互)；
+# 错误输出为 "% " 前缀样式(生产用错误正则 ^%\s)
 # 已知特征：提示符以 $ 结尾；输入超长回缩时发送 `$`+退格+`\r\n\r` 序列(过滤器已内置处理)
 vendor: array
-# paging_disable: 待验证
-# save_config_cmd: 待验证
+paging_disable: no pager
+save_config_cmd: write memory
+error_patterns:
+  - name: array-percent-error
+    pattern: '^%\s'

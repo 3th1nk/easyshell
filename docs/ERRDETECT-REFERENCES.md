@@ -56,7 +56,13 @@
   - 注：`error:` 前缀样式多属 commit 阶段配置校验错误(如
     `error: configuration check-out failed`)，非命令行解析错误，刻意不纳入
 
-## 待真机沉淀(骨架厂商)
+## 山石 StoneOS / Array APV(生产真机验证)
 
-- 山石 StoneOS / Array APV：无公开错误样式资料，待真机输出后在
-  `vendors/hillstone.yaml`、`vendors/array.yaml` 的 `ErrorPatterns` 字段补充
+- 出处：内部生产环境(证券运维自动化)真机验证，生产错误检测正则 `(^%\s)|\^`
+  ——错误行以 `% ` 开头(% 后空白，可排除 `%TAG-` 样式的日志行)
+- 规则:`^%\s`(厂商级 ErrorPatterns，叠加在全局默认之上，见 vendors/hillstone.yaml、
+  vendors/array.yaml)
+- 已沉淀的其它真机经验：山石配置模式 `configure`/保存 `save`(无确认)；Array 提权
+  `enable`(密码应答)/禁用分页 `no pager`/保存 `write memory`；Array 输入超长回缩时
+  发送 `` $`+退格+`\r\n\r` `` 序列(filter 的 apv 状态已内置处理)
+- 山石 `paging_disable` 仍待验证
