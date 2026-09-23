@@ -20,9 +20,7 @@
 
 ## 计划中
 
-### v2.3.0(候选)
-- [ ] 山石 paging_disable 待真机验证(错误模式/保存配置/禁用分页已按生产真机经验
-      沉淀至 vendors/*.yaml，见 docs/ERRDETECT-REFERENCES.md)
+(当前无；厂商驱动的真机沉淀已完成——见 vendors/*.yaml 与 docs/ERRDETECT-REFERENCES.md)
 
 ## 远期(评估中)
 

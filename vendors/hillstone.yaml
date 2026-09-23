@@ -1,10 +1,24 @@
-# 山石 StoneOS
-# 真机经验(生产环境验证)：配置模式 configure；保存配置 save(无确认交互，配置模式内执行)；
-# 错误输出为 "% " 前缀样式(生产用错误正则 ^%\s——%后空白可排除 %TAG 样式日志行)
-# 已知特征：HA 主备提示符后缀 ~(M)# / ~(B)#；命令行编辑退格怪癖已在过滤器内置处理
+# 山石 StoneOS(官方手册三版一致确认：R7/5.5R10/5.5R2-4；生产真机印证)
+# 分页：--More-- 提示符(回车下一行/q退出/任意键下一页，More拦截器兼容)；
+#   terminal length 0 关闭分页(官方确认仅对当前连接有效、不入配置文件)
+# 模式与提示符：执行 hostname# → configure → 全局配置 hostname(config)# →
+#   子模块 hostname(config-if-eth0/0)#；提示符含 "(config" 使 InConfigMode 对山石生效；
+#   VRouter 变体带 [name] 后缀(如 hostname[TRN](config)#)；
+#   HA 主备提示符后缀 ~(M)# / ~(B)#(真机验证，手册无文本出处)；
+#   命令行编辑退格怪癖已在过滤器内置处理
+# 保存配置：save [string] 官方确认"任何命令模式"可执行、无确认交互
+#   (string 缺省时直接覆盖原有配置文件)
+# 错误输出：官方三种 Unrecognized/Incomplete/Ambiguous command(手册表格为简化文本，
+#   真机实际带 "% " 前缀，生产错误正则 ^%\s)；厂商级规则按官方文本精确匹配 + % 兜底
 vendor: hillstone
+paging_disable: terminal length 0
 save_config_cmd: save
 error_patterns:
+  - name: hillstone-unrecognized
+    pattern: '^%?\s*Unrecognized command'
+  - name: hillstone-incomplete
+    pattern: '^%?\s*Incomplete command'
+  - name: hillstone-ambiguous
+    pattern: '^%?\s*Ambiguous command'
   - name: hillstone-percent-error
     pattern: '^%\s'
-# paging_disable: 待验证(StoneOS 文档/真机确认后填写)

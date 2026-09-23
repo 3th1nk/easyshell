@@ -12,9 +12,11 @@
   `Error: Too many parameters`；锐捷等类Cisco语法由 cisco-* 规则覆盖。
   出处与样例归档至 docs/ERRDETECT-REFERENCES.md；
   宽松模式(`% Error`/`command not found`)经评估刻意不纳入(误报代价高于漏报)
-- 山石/Array 厂商驱动从骨架升级为生产真机验证：山石 `save_config_cmd: save`、
-  Array `paging_disable: no pager`/`save_config_cmd: write memory`；两家新增厂商级
-  错误模式 `^%\s`(生产验证的错误样式，%后空白排除日志行)
+- 山石/Array 厂商驱动从骨架升级为官方手册+生产真机双验证：山石
+  `paging_disable: terminal length 0`/`save_config_cmd: save`(官方确认任何模式可执行)、
+  Array `paging_disable: no pager`/`save_config_cmd: write memory`；山石新增厂商级错误
+  规则(官方三种 Unrecognized/Incomplete/Ambiguous command + `^%\s` 兜底)、Array 新增
+  `^%\s`(%后空白排除日志行)
 
 ## v2.2.0
 

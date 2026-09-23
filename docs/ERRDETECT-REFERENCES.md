@@ -56,13 +56,29 @@
   - 注：`error:` 前缀样式多属 commit 阶段配置校验错误(如
     `error: configuration check-out failed`)，非命令行解析错误，刻意不纳入
 
-## 山石 StoneOS / Array APV(生产真机验证)
+## 山石 StoneOS
+
+- 出处：《StoneOS 命令行手册》官方三版一致(R7 / V5.5R10 全系列 / 5.5R2-4，
+  厂商提供 PDF)+内部生产真机印证
+- 官方错误信息三种："Unrecognized command"(找不到命令/参数类型错/值越界)、
+  "Incomplete command"(不完整)、"Ambiguous command"(不明确)。手册表格为简化文本，
+  真机实际输出带 `% ` 前缀(生产错误正则 `^%\s`)
+- 规则(厂商级，见 vendors/hillstone.yaml)：
+  - `^%?\s*(Unrecognized|Incomplete|Ambiguous) command` 按官方文本精确匹配(可选 % 前缀)
+  - `^%\s` 兜底其余 `% ` 前缀错误(% 后空白，排除 `%TAG-` 样式日志行)
+- 其它官方确认：分页提示符 `--More--`(回车下一行/q 退出/任意键下一页)；
+  `terminal length 0` 关闭分页(仅当前连接有效)；`save [string]` 任何模式可执行、
+  无确认；提示符 `hostname#`/`hostname(config)#`/`hostname(config-if-eth0/0)#`，
+  VRouter 变体带 `[name]` 后缀
+
+## Array APV(生产真机验证)
 
 - 出处：内部生产环境(证券运维自动化)真机验证，生产错误检测正则 `(^%\s)|\^`
-  ——错误行以 `% ` 开头(% 后空白，可排除 `%TAG-` 样式的日志行)
+  ——错误行以 `% ` 开头(% 后空白，可排除 `%TAG-` 样式的日志行)；
+  《Array APV 用户手册》8.5.0 第 4 章确认权限三级与配置模式体系(无错误样式样例)
 - 规则:`^%\s`(厂商级 ErrorPatterns，叠加在全局默认之上，见 vendors/hillstone.yaml、
   vendors/array.yaml)
-- 已沉淀的其它真机经验：山石配置模式 `configure`/保存 `save`(无确认)；Array 提权
-  `enable`(密码应答)/禁用分页 `no pager`/保存 `write memory`；Array 输入超长回缩时
+- 已沉淀的其它真机经验：Array 提权 `enable`(提示 "Enable password:"，缺省密码为空)/
+  禁用分页 `no pager`(配置模式内)/保存 `write memory`(Config 级别执行)；
+  `config terminal force` 强制进入配置模式需应答 "YES"；Array 输入超长回缩时
   发送 `` $`+退格+`\r\n\r` `` 序列(filter 的 apv 状态已内置处理)
-- 山石 `paging_disable` 仍待验证
