@@ -17,6 +17,9 @@
   Array `paging_disable: no pager`/`save_config_cmd: write memory`；山石新增厂商级错误
   规则(官方三种 Unrecognized/Incomplete/Ambiguous command + `^%\s` 兜底)、Array 新增
   `^%\s`(%后空白排除日志行)
+- 锐捷厂商驱动经官方手册核对(RGOS 11.4(1)B42 配置手册)：保存命令修正为
+  `write`(原 write memory 无官方证据)；提示符体系与错误样式(与Cisco IOS一致)获
+  官方确认；terminal length 0 标注为待证(配置手册未收录，More 拦截器兜底)
 
 ## v2.2.0
 

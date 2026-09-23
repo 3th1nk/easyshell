@@ -25,8 +25,10 @@
 - 样例：
   - `% Invalid command at '^' marker.`(注意与 IOS 的 "Invalid input" 样式不同)
   - 变体 `Invalid interface format at '^' marker.`(待真机确认是否带 `%` 前缀，暂未纳入)
-- 锐捷 Ruijie：官方 RG-WLAN/RGOS 配置指南的 CLI 错误提示表确认与 Cisco IOS
-  三种样式完全一致，由 `cisco-*` 规则覆盖，无单独规则
+- 锐捷 Ruijie：官方《RG-S5700H系列 RGOS 11.4(1)B42 配置手册》V2.0 §1.3.6
+  带样例确认与 Cisco IOS 三种样式完全一致，由 `cisco-*` 规则覆盖，无单独规则；
+  提示符体系(Ruijie> / Ruijie# / Ruijie(config)#)与保存命令(`write`，执行模式直接
+  执行)亦经该手册官方确认，见 vendors/ruijie.yaml
 
 ## H3C / Comware
 
