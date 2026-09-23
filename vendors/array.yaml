@@ -1,7 +1,14 @@
-# Array APV 负载均衡
+# Array APV 负载均衡(ArrayOS/APV 8.5.0)
 # 真机经验(生产环境验证)：enable(密码应答，可用 interceptor.Password 处理)提权后
 # config terminal；禁用分页 no pager(配置模式内)；保存配置 write memory(无确认交互)；
 # 错误输出为 "% " 前缀样式(生产用错误正则 ^%\s)
+# 官方手册确认(《Array APV 用户手册》8.5.0 第4章"初始设置")：
+#   - 权限三级：User(提示符 >) → Enable(#，enable 命令进入，提示 "Enable password:"，
+#     缺省密码为空按回车) → Config((config)#，config terminal 进入)；
+#     提示符含 "(config" 使 easyshell 的 InConfigMode 对 Array 直接生效
+#   - Config 级别同一时间仅允许一个用户：config terminal 被占用时可用
+#     "config terminal force" 强制进入，需应答确认 "YES"(interceptor 可处理)
+#   - write memory 需在 Config 级别执行：调用 SaveConfig 前需先自行进入配置模式
 # 已知特征：提示符以 $ 结尾；输入超长回缩时发送 `$`+退格+`\r\n\r` 序列(过滤器已内置处理)
 vendor: array
 paging_disable: no pager
