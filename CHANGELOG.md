@@ -1,10 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### 新增
+- 根包导出 `NewErrorPattern`(自定义错误检测规则的构建函数，与 `ErrorPattern`/`DefaultErrorPatterns` 配套)
+
 ## v2.2.0
 
 ### 新增
-- SCP 传输兜底(ScpUpload/ScpDown)：老设备无 SFTP 子系统时走 exec 通道传输，
-  含 mock SCP 协议端离线测试
+- 文件传输协议自动选择：优先 SFTP，老设备无 SFTP 子系统时自动降级 SCP(exec 通道)，
+  可 `TransferOptions.Protocol` 强制；含 mock SCP 协议端离线测试
+- 厂商驱动配置批量加载：`LoadVendorProfilesPath`/`LoadVendorProfiles`(YAML/JSON)
 - known_hosts 主机密钥校验(KnownHostsCallback + SshCredential.HostKeyCallback)：
   支持标准 known_hosts 格式(含 hashed hostname)
 - filter 状态机 fuzz 测试(30万+随机输入零失败，含切分一致性与转义不泄漏不变量)
@@ -13,6 +19,18 @@
 
 ### 修复
 - telnet 客户端 Write 经由 net.Pipe 测试暴露的转义边界问题加固
+- 目录上传跳过 md5 校验(此前对目录执行 md5sum 报 is a directory)
+
+### 变更
+- 包结构收敛：core 读取循环/错误类型下沉 `internal/`，公共别名迁移至根包
+  (`easyshell.Error`/`IsTimeout`/`OpOf`/`RunOptions`/`Config` 等)；`telnet` 包收敛为
+  internal，外部统一经 `Shell` 接口使用(自定义登录正则暂未暴露)
+- 传输 API 重构：`SftpUpload/SftpOptions{HashVerify}` → `Upload/TransferOptions`
+  (上传校验默认开启，改由 `NoVerify` 关闭；`ScpUpload/ScpDown` 收敛为 internal)；
+  移除 sftp 客户端缓存，改为一次性客户端；上传临时文件改为 `.eshtemp` 隐藏文件
+- `NewSshShellFromClient`/`NewTelnetShellFromClient` 降级为非导出
+- interceptor 移除零使用的组合糖函数 `LastLineRegex/LastLinePattern/LastLinePassword`
+  (语义仍可经 `Pattern(pattern, input, LastLine, showOut...)` 表达)
 
 ## v2.1.0
 
