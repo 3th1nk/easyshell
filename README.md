@@ -8,8 +8,8 @@
 * 内置拦截器：密码交互(Password)、选项交互(AlwaysYes/AlwaysNo)、网络设备自动翻页(More)、继续执行(Continue)；拦截器命中后先丢弃未完成行再写入应答，无内容粘连
 * 延迟返回输出内容(按时间间隔或累计大小)；stderr 三种处理策略(Error/Output/Ignore)
 * 录制原始输入输出并回放(record 包，二进制帧格式，含时间戳与方向)
-* 设备错误检测：命令解析错误(H3C/Cisco/华为/Juniper)命中即报 *easyshell.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
-* 精简的接口参数：每次调用的可选项(提示符覆盖/拦截器)统一为 RunOptions 可变参数结构体
+* 设备错误检测：命令解析错误(Cisco IOS/NX-OS/H3C/华为/Juniper，锐捷等类Cisco语法自动覆盖)命中即报 *easyshell.DeviceError，Fail/Collect 两种策略；登录横幅不参与检测
+* 精简的接口参数：每次调用的可选项(提示符覆盖/拦截器/命令级超时)统一为 RunOptions 可变参数结构体
 * 跳板机/堡垒机：多级代理链(SshConfig.Proxy)；SSH Agent 认证(UseAgent)
 * 厂商驱动(VendorProfile)：禁用分页/保存配置(含确认交互)/错误模式整合，支持自定义厂商注册
 * 长连接保活(Config.KeepAlive)：周期探测+失败阈值+死亡回调，防空闲断连
@@ -103,6 +103,13 @@ go get github.com/3th1nk/easyshell/v2
     }, "screen-length disable", "display version", "display clock")
 ```
 
+- 命令级超时(独立于 ctx，慢命令单独放宽/交互命令单独收紧)
+```go
+    // Timeout 只约束本次调用(ping/copy 等慢命令单独放宽，不必放大整个会话 ctx)；
+    // 超时错误可经 easyshell.IsTimeout 判断，零值不限、跟随 ctx
+    err = s.Run(ctx, "ping -c 100 192.0.2.1", nil, easyshell.RunOptions{Timeout: 2 * time.Minute})
+```
+
 - 厂商驱动与保存配置
 ```go
     s.Run(ctx, easyshell.VendorProfileOf(easyshell.VendorH3C).PagingDisable, nil)
@@ -135,8 +142,8 @@ go get github.com/3th1nk/easyshell/v2
 
 - 设备错误检测(输出中的命令解析错误自动失败)
 ```go
-    // 默认开启：命中 H3C/Cisco/华为/Juniper 命令解析错误即返回 *easyshell.DeviceError
-    //  (登录横幅不参与检测，登录即输出错误样式信息的设备不会误报)
+    // 默认开启：命中 Cisco IOS/NX-OS/H3C/华为/Juniper 命令解析错误即返回 *easyshell.DeviceError
+    //  (登录横幅不参与检测，登录即输出错误样式信息的设备不会误报；出处见 docs/ERRDETECT-REFERENCES.md)
     err = s.Run(ctx, "disp lay ver", onOut)
     var de *easyshell.DeviceError
     if errors.As(err, &de) {

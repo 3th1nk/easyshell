@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/3th1nk/easyshell/v2/interceptor"
 	"regexp"
+	"time"
 )
 
 // RunOptions 命令执行/读取的可选参数。
@@ -19,4 +20,12 @@ type RunOptions struct {
 	Prompt *regexp.Regexp
 	// Interceptors 输出拦截器(密码交互、翻页应答、选项应答、错误检测应答等)
 	Interceptors []interceptor.Interceptor
+	// Timeout 本次调用的超时(独立于 ctx，零值不限、跟随 ctx)。
+	//
+	//	从写入命令/开始读取起算的总时长上限：Run=单条命令(每命令超时)，
+	//	ReadUntilPrompt/ReadAll/RunAll=本次调用整体。
+	//	用途是给慢命令(ping/copy/长配置回显)单独放宽、或给交互类命令单独收紧，
+	//	避免为局部需求放大整个会话 ctx 的超时。
+	//	超时返回的错误可经 IsTimeout 判断(OpTimeout)，与 ctx 超时同一语义。
+	Timeout time.Duration
 }

@@ -431,3 +431,44 @@ func TestReader_InConfigMode(t *testing.T) {
 		}
 	}
 }
+
+// TestReader_RunOptionsTimeout RunOptions.Timeout 每命令超时(独立于 ctx)
+func TestReader_RunOptionsTimeout(t *testing.T) {
+	r, inReader, outWriter := newTestReader(defaultTestConfig())
+	defer r.Close()
+
+	// 无提示符的慢命令输出：永远等不到命令结束，只能靠 Timeout 收敛
+	go mockShell(inReader, outWriter, func(cmd string) string {
+		return "partial output without prompt"
+	})
+
+	// 命中超时：错误可经 IsTimeout 判断(OpTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	start := time.Now()
+	err := r.Run(ctx, "slow command", nil, RunOptions{Timeout: 100 * time.Millisecond})
+	assert.Error(t, err)
+	assert.True(t, IsTimeout(err), "应为超时错误, got=%v", err)
+	assert.Less(t, time.Since(start), 3*time.Second, "应在 Timeout 时限内返回，而非等待 ctx")
+
+	// 零值不限：跟随 ctx 超时
+	err = r.Run(ctx, "slow command", nil)
+	assert.Error(t, err)
+	assert.False(t, IsTimeout(err) && ctx.Err() == nil, "无Timeout时跟随ctx")
+}
+
+// TestReader_RunOptionsTimeout_Normal 正常命令在时限内完成不受影响
+func TestReader_RunOptionsTimeout_Normal(t *testing.T) {
+	r, inReader, outWriter := newTestReader(defaultTestConfig())
+	defer r.Close()
+
+	go mockShell(inReader, outWriter, func(cmd string) string {
+		return "out:" + cmd + "\nprompt# "
+	})
+
+	var lines []string
+	assert.NoError(t, r.Run(context.Background(), "show version", func(arr []string) {
+		lines = append(lines, arr...)
+	}, RunOptions{Timeout: 5 * time.Second}))
+	assert.True(t, hasLine(lines, "out:show version"))
+}

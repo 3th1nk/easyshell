@@ -18,8 +18,10 @@ func TestDetectErrors(t *testing.T) {
 	for _, line := range []string{
 		"% Unrecognized command found at '^' position.",
 		"% Invalid input detected at '^' marker.",
+		"% Invalid command at '^' marker.", // Cisco NX-OS(样式与IOS不同)
 		"Error: Unrecognized command found at '^' position.",
 		"Error: Wrong parameter found at '^' position.",
+		"Error: Too many parameters found at '^' position.", // 华为第五种(官方文档)
 		"invalid input detected",
 	} {
 		if de := detectErrors(patterns, "foo bar", []string{line}); de == nil {
@@ -31,7 +33,7 @@ func TestDetectErrors(t *testing.T) {
 		}
 	}
 
-	// 不命中：syslog日志、登录横幅、正常输出(误报防护的关键用例)
+	// 不命中：syslog日志、登录横幅、正常输出、业务执行错误(误报防护的关键用例)
 	for _, line := range []string{
 		"%Apr 18 12:00:00:123 2026 SW01 SHELL/6/SHELL_CMD: Line con0 is available.", // H3C日志
 		"%%01IFNET/4/IF_STATE(l): Interface status changed.",                        // 华为日志
@@ -39,6 +41,8 @@ func TestDetectErrors(t *testing.T) {
 		"  version 7.1.070, Release 3506P10",
 		"",
 		"<SW03>",
+		"% Error opening flash:/backup.cfg (File not found)", // 业务执行错误(命令解析成功)，刻意不纳入
+		"bash: foo: command not found",                       // Linux shell 正常报错样式，刻意不纳入
 	} {
 		if de := detectErrors(patterns, "cmd", []string{line}); de != nil {
 			t.Errorf("不应命中: %q -> %v", line, de)

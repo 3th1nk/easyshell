@@ -21,8 +21,8 @@
 ## 计划中
 
 ### v2.3.0(候选)
-- [ ] 设备错误模式库扩充(基于真机 fixture 沉淀)
-- [ ] RunOptions 增加每命令超时(独立于 ctx)
+- [ ] 设备错误模式库扩充(基于真机 fixture 沉淀；山石/Array 待真机验证，
+      骨架外厂商错误样式见 docs/ERRDETECT-REFERENCES.md)
 
 ## 远期(评估中)
 

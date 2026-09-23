@@ -181,12 +181,12 @@ func firstOptOf(opts []RunOptions) RunOptions {
 //	onOut 在读取流程中同步调用：阻塞它会推迟读取与提示符判定
 //	(设备可能在等待拦截器应答导致输出停住)，需要重处理时请在回调内自行异步化。
 func (r *Reader) ReadUntilPrompt(ctx context.Context, onOut func(lines []string), opts ...RunOptions) error {
-	return r.read(ctx, true, firstOptOf(opts).Prompt, onOut, firstOptOf(opts).Interceptors)
+	return r.read(ctx, true, firstOptOf(opts), onOut)
 }
 
 // ReadAll 读取全部输出直到流结束(等价于 Read(ctx, false, ...))
 func (r *Reader) ReadAll(ctx context.Context, onOut func(lines []string), opts ...RunOptions) error {
-	return r.read(ctx, false, firstOptOf(opts).Prompt, onOut, firstOptOf(opts).Interceptors)
+	return r.read(ctx, false, firstOptOf(opts), onOut)
 }
 
 // Run 写入命令并读取输出直到提示符，等价于 Write + ReadUntilPrompt。
@@ -196,8 +196,7 @@ func (r *Reader) Run(ctx context.Context, cmd string, onOut func(lines []string)
 	if err := r.Write(cmd); err != nil {
 		return err
 	}
-	opt := firstOptOf(opts)
-	return r.read(ctx, true, opt.Prompt, onOut, opt.Interceptors)
+	return r.read(ctx, true, firstOptOf(opts), onOut)
 }
 
 // InConfigMode 基于最近匹配的提示符推断是否处于配置模式(启发式)：
@@ -229,12 +228,11 @@ func (r *Reader) RunAll(ctx context.Context, cmd string, onOut func(lines []stri
 		return err
 	}
 	opt := firstOptOf(opts)
-	return r.read(ctx, false, opt.Prompt, onOut, opt.Interceptors)
+	return r.read(ctx, false, opt, onOut)
 }
 
 func (r *Reader) Read(ctx context.Context, stopOnPrompt bool, onOut func(lines []string), opts ...RunOptions) (err error) {
-	opt := firstOptOf(opts)
-	return r.read(ctx, stopOnPrompt, opt.Prompt, onOut, opt.Interceptors)
+	return r.read(ctx, stopOnPrompt, firstOptOf(opts), onOut)
 }
 
 // logf 日志钩子(nil 安全)，keyValues 为 slog 属性对
@@ -244,13 +242,19 @@ func (r *Reader) logf(level slog.Level, msg string, keyValues ...any) {
 	}
 }
 
-// read 读取输出；promptOverride 非 nil 时仅以该规则判定命令结束(严格模式，默认规则不参与)
-func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *regexp.Regexp, onOut func(lines []string), interceptors []interceptor.Interceptor) (err error) {
+// read 读取输出；opt.Prompt 非 nil 时仅以该规则判定命令结束(严格模式，默认规则不参与)；
+// opt.Timeout > 0 时为本次调用叠加超时(独立于 ctx，超时经 IsTimeout 判断)
+func (r *Reader) read(ctx context.Context, stopOnPrompt bool, opt RunOptions, onOut func(lines []string)) (err error) {
 	// 单读者守卫：并发 Read 会互相争抢输出导致串流错乱
 	if !r.readMu.TryLock() {
 		return &Error{Op: OpRead, Err: ErrConcurrentRead}
 	}
 	defer r.readMu.Unlock()
+	if opt.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opt.Timeout)
+		defer cancel()
+	}
 	if r.closed.Load() {
 		return &Error{Op: OpRead, Err: ErrClosed}
 	}
@@ -306,7 +310,7 @@ func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *re
 
 			// 匹配优先级：指定的拦截器规则 > 默认拦截器规则 > 命令结束提示符规则
 			//	匹配内容只取尾部窗口(超大行的行内容与提示符规则均为尾部有效)
-			if len(interceptors) > 0 {
+			if len(opt.Interceptors) > 0 {
 				if outBuf.Len() > 0 {
 					outBuf.WriteString("\n")
 				}
@@ -316,7 +320,7 @@ func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *re
 					outBuf.WriteString(remaining)
 				}
 				window := tailWindow(outBuf.String(), promptMatchWindow)
-				for _, f := range interceptors {
+				for _, f := range opt.Interceptors {
 					if match, showOut, input := f(window); match {
 						outBuf.Reset()
 						// 先丢弃过滤器的未完成行再写入应答：
@@ -349,11 +353,11 @@ func (r *Reader) read(ctx context.Context, stopOnPrompt bool, promptOverride *re
 			}
 
 			// 命令输出结束(提示符命中)
-			if r.isPrompt(tailWindow(remaining, promptMatchWindow), promptOverride) {
+			if r.isPrompt(tailWindow(remaining, promptMatchWindow), opt.Prompt) {
 				r.mu.Lock()
 				// 当未指定提示符规则 且 AutoPrompt=true 时，尝试自动纠正提示符匹配规则
 				//	(指定了覆盖规则时，AutoPrompt 不生效——覆盖规则由调用方负责)
-				if promptOverride == nil && len(r.promptRegex) == 0 && r.cfg.AutoPrompt {
+				if opt.Prompt == nil && len(r.promptRegex) == 0 && r.cfg.AutoPrompt {
 					if re := findPromptRegex(remaining); re != nil {
 						r.promptRegex = append(r.promptRegex, re)
 					}

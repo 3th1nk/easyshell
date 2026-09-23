@@ -6,6 +6,12 @@
 - 根包导出 `NewErrorPattern`(自定义错误检测规则的构建函数，与 `ErrorPattern`/`DefaultErrorPatterns` 配套)
 - Telnet 自定义登录正则(`TelnetConfig.LoginUserRegex/LoginPassRegex/LoginPromptRegex`，
   nil 时使用内置规则)，覆盖非标登录提示符设备(v1 能力在 v2 包结构收敛后的恢复)
+- `RunOptions.Timeout` 命令级超时：独立于 ctx、只约束本次调用，慢命令单独放宽/
+  交互命令单独收紧；零值不限跟随 ctx，超时错误可经 `IsTimeout` 判断
+- 错误模式库扩充：新增 Cisco NX-OS(`% Invalid command at`)与华为 VRP
+  `Error: Too many parameters`；锐捷等类Cisco语法由 cisco-* 规则覆盖。
+  出处与样例归档至 docs/ERRDETECT-REFERENCES.md；
+  宽松模式(`% Error`/`command not found`)经评估刻意不纳入(误报代价高于漏报)
 
 ## v2.2.0
 
