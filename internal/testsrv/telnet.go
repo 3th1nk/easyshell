@@ -3,6 +3,7 @@ package testsrv
 
 import (
 	"bufio"
+	"github.com/3th1nk/easygo/util"
 	"net"
 	"strings"
 	"testing"
@@ -15,6 +16,10 @@ type TelnetServer struct {
 	User     string
 	Password string
 	Prompt   string
+	// UserPrompt/PassPrompt 自定义登录提示符(空则用默认 "Login:"/"Password:")，
+	//	用于模拟非标设备的登录提示符
+	UserPrompt string
+	PassPrompt string
 
 	ln net.Listener
 	t  *testing.T
@@ -66,12 +71,13 @@ func (s *TelnetServer) handle(conn net.Conn, authMode string) {
 	write(s.Welcome)
 
 	// 认证(密码错误时重新提示，最多2次)
+	userPrompt, passPrompt := util.IfEmptyString(s.UserPrompt, "Login:"), util.IfEmptyString(s.PassPrompt, "Password:")
 	switch authMode {
 	case "none": // 无认证，直接进入命令交互
 		goto authed
 	case "password":
 		for i := 0; i < 2; i++ {
-			write("Password:")
+			write(passPrompt)
 			if s.expect(br, s.Password) {
 				goto authed
 			}
@@ -79,11 +85,11 @@ func (s *TelnetServer) handle(conn net.Conn, authMode string) {
 		return
 	default: // "user"
 		for i := 0; i < 2; i++ {
-			write("Login:")
+			write(userPrompt)
 			if !s.expect(br, s.User) {
 				return
 			}
-			write("Password:")
+			write(passPrompt)
 			if s.expect(br, s.Password) {
 				goto authed
 			}

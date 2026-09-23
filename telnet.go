@@ -7,6 +7,7 @@ import (
 	"github.com/3th1nk/easyshell/v2/internal/core"
 	"github.com/3th1nk/easyshell/v2/internal/telnet"
 	"github.com/3th1nk/easyshell/v2/record"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -18,6 +19,12 @@ type TelnetConfig struct {
 	Credential TelnetCredential
 	// Record 会话录制配置，nil 时不录制
 	Record *RecordConfig
+	// LoginUserRegex 匹配登录用户名输入提示符的正则，nil 时使用内置规则(login:/username: 等)
+	LoginUserRegex *regexp.Regexp
+	// LoginPassRegex 匹配登录密码输入提示符的正则，nil 时使用内置规则(password: 等)
+	LoginPassRegex *regexp.Regexp
+	// LoginPromptRegex 匹配登录完成后命令提示符的正则，nil 时使用内置规则
+	LoginPromptRegex *regexp.Regexp
 	// Echo 是否允许回显(取决于设备是否支持)，部分网络设备上无效(总是回显)
 	Echo bool
 	// SuppressGA 是否抑制 "go ahead" 命令
@@ -36,12 +43,15 @@ func NewTelnetShell(cfg TelnetConfig) (*TelnetShell, error) {
 	}
 
 	client, err := telnet.NewClient(telnet.Config{
-		Addr:       fmt.Sprintf("%s:%d", cfg.Credential.Host, util.IfEmptyInt(cfg.Credential.Port, 23)),
-		User:       cfg.Credential.User,
-		Password:   cfg.Credential.Password,
-		Timeout:    cfg.Credential.Timeout,
-		Echo:       cfg.Echo,
-		SuppressGA: cfg.SuppressGA,
+		Addr:             fmt.Sprintf("%s:%d", cfg.Credential.Host, util.IfEmptyInt(cfg.Credential.Port, 23)),
+		User:             cfg.Credential.User,
+		Password:         cfg.Credential.Password,
+		LoginUserRegex:   cfg.LoginUserRegex,
+		LoginPassRegex:   cfg.LoginPassRegex,
+		LoginPromptRegex: cfg.LoginPromptRegex,
+		Timeout:          cfg.Credential.Timeout,
+		Echo:             cfg.Echo,
+		SuppressGA:       cfg.SuppressGA,
 	})
 	if err != nil {
 		if rec != nil {

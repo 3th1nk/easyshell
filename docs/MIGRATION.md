@@ -17,7 +17,7 @@
 | `filter.NewDefaultFilter(opt)` / `filter.IFilter.Do` | `filter.NewFilter(opts ...Options)` / `filter.FilterFunc` 或实现 `filter.Filter`(有状态) |
 | `filter.CrTrimModeOnlyCr` | `filter.CRTrimDropCR` |
 | `sftp.Upload(l, r, true)` | `s.Upload(l, r, TransferOptions{Force: true})`(上传原子化；协议自动选择，SFTP 不可用时降级 SCP；上传后默认 md5 校验，`NoVerify` 关闭) |
-| `telnet.ClientConfig.UserRegex/PassRegex/PromptRegex` | 登录提示符收敛为内置规则(v2 暂未暴露自定义登录正则) |
+| `telnet.ClientConfig.UserRegex/PassRegex/PromptRegex` | `TelnetConfig.LoginUserRegex/LoginPassRegex/LoginPromptRegex`(nil 时使用内置规则) |
 | `telnet.Client.ReadUtil/ReadUtil2/SkipUtil*` | `telnet` 包收敛为 internal 不再暴露，统一用 `Shell.ReadUntilPrompt` |
 | `telnet.Client.FirstPrompt()` | `Shell.Prompt()`(`telnet` 包不再暴露) |
 | 内嵌 `shell.ReadWriter`(透传使用) | 不再暴露；`Shell` 接口覆盖原有用法 |

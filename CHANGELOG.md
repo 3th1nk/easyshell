@@ -4,6 +4,8 @@
 
 ### 新增
 - 根包导出 `NewErrorPattern`(自定义错误检测规则的构建函数，与 `ErrorPattern`/`DefaultErrorPatterns` 配套)
+- Telnet 自定义登录正则(`TelnetConfig.LoginUserRegex/LoginPassRegex/LoginPromptRegex`，
+  nil 时使用内置规则)，覆盖非标登录提示符设备(v1 能力在 v2 包结构收敛后的恢复)
 
 ## v2.2.0
 
@@ -24,7 +26,7 @@
 ### 变更
 - 包结构收敛：core 读取循环/错误类型下沉 `internal/`，公共别名迁移至根包
   (`easyshell.Error`/`IsTimeout`/`OpOf`/`RunOptions`/`Config` 等)；`telnet` 包收敛为
-  internal，外部统一经 `Shell` 接口使用(自定义登录正则暂未暴露)
+  internal，外部统一经 `Shell` 接口使用
 - 传输 API 重构：`SftpUpload/SftpOptions{HashVerify}` → `Upload/TransferOptions`
   (上传校验默认开启，改由 `NoVerify` 关闭；`ScpUpload/ScpDown` 收敛为 internal)；
   移除 sftp 客户端缓存，改为一次性客户端；上传临时文件改为 `.eshtemp` 隐藏文件
